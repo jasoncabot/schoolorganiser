@@ -12,7 +12,7 @@ export const EXTRACTION_MODEL = "@cf/mistralai/mistral-small-3.1-24b-instruct";
  * Bump when reading or extraction changes in a way worth re-running on stored mail (prompt,
  * model, PDF layout). Messages read by an older version are re-read on the next processing run.
  */
-export const EXTRACTION_VERSION = 6;
+export const EXTRACTION_VERSION = 7;
 
 export const ITEM_KINDS = [
   "event",

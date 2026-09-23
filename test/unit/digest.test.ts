@@ -279,12 +279,16 @@ describe("digestEmail", () => {
   it("mentions attachments it couldn't read", () => {
     const email = digest({
       unreadable: [
-        { filename: "trip.ppt", subject: "Fwd: Trip" },
-        { filename: "scan.heic", subject: null },
+        { filename: "trip.ppt", subject: "Fwd: Trip", reason: "unsupported format" },
+        { filename: "scan.heic", subject: null, reason: "unsupported format" },
+        { filename: "Club letter.docx", subject: "Fwd: Club", reason: "not attached" },
       ],
     });
     expect(email.text).toContain(
       `We couldn't read trip.ppt (in "Fwd: Trip"), scan.heic. Check the original emails.`,
+    );
+    expect(email.text).toContain(
+      `Club letter.docx (in "Fwd: Club") wasn't attached when forwarded. Forward again and choose to include attachments.`,
     );
   });
 });

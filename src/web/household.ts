@@ -281,7 +281,12 @@ function activityRow(a: Activity): Html {
   let detail: string;
   if (a.status === "done") {
     tag = html`<span class="tag tag-done">Done</span>`;
-    const outcome = { read: "read", skipped: "skipped as a logo", unreadable: "couldn't read" };
+    const outcome = {
+      read: "read",
+      skipped: "skipped as a logo",
+      unreadable: "couldn't read",
+      missing: "not attached",
+    };
     const files = (a.attachments ?? []).map((f) => `${f.filename} (${outcome[f.outcome]})`);
     detail = [
       `${plural(a.items, "item")} and ${plural(a.notes, "note")} found.`,

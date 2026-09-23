@@ -206,6 +206,22 @@ describe("readMessage", () => {
     expect(message.attachments).toEqual([{ filename: "judo.docx", outcome: "read" }]);
   });
 
+  it("notices an attachment iPhone Mail left out of a forward", async () => {
+    const html = "<div>Please see the letter.</div><div>&lt;Oakfield Club Letter .docx&gt;</div>";
+    await registerMarkdown(html, "Please see the letter.\n\n<Oakfield Club Letter .docx>");
+    const message = await readMessage(
+      encode(mimeEmail({ from: "p@example.com", subject: "Fwd: Club", html })),
+      env.AI,
+      pdfRenderer(env, testDeps("renderer")),
+    );
+    expect(message.unreadable).toEqual([
+      { filename: "Oakfield Club Letter.docx", reason: "not attached" },
+    ]);
+    expect(message.attachments).toEqual([
+      { filename: "Oakfield Club Letter.docx", outcome: "missing" },
+    ]);
+  });
+
   it("converts an HTML-only body with toMarkdown", async () => {
     const html = "<p>Disco on <b>Friday 17 October</b></p>";
     await registerMarkdown(html, "Disco on **Friday 17 October**");

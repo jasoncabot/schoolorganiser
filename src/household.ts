@@ -267,8 +267,8 @@ export class Household extends Agent<Env> {
       .toArray();
     if (recipients.length === 0) return { sent: 0 };
     const unreadable = this.db
-      .exec<{ id: number; filename: string; subject: string | null }>(
-        `SELECT u.rowid AS id, u.filename, m.subject FROM unreadable u
+      .exec<{ id: number; filename: string; subject: string | null; reason: Unreadable["reason"] }>(
+        `SELECT u.rowid AS id, u.filename, m.subject, u.reason FROM unreadable u
          JOIN messages m ON m.id = u.message_id
          WHERE u.mentioned_at IS NULL ORDER BY m.received_at, u.filename`,
       )

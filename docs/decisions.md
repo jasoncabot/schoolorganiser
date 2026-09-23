@@ -38,7 +38,8 @@ Settled with the owner. Don't reopen without asking. Replace a decision when it 
 
 - Model: `@cf/mistralai/mistral-small-3.1-24b-instruct`, JSON mode, chosen as the cheapest that extracted every item in the evaluation (`npm run eval:extraction`).
 - PDFs: page images from Browser Run's `screenshot` Quick Action (at most 10 pages per message) plus the text layer from `unpdf`, laid out column by column. No Workers AI model accepts a PDF file. toMarkdown is the fallback for scans.
-- Attachments marked inline are read too (iPhone Mail forwards documents that way); only inline images under 50 KB are skipped as logos. Each message records every attachment as read, skipped or unreadable, shown in the activity log.
+- Attachments marked inline are read too (iPhone Mail forwards documents that way); only inline images under 50 KB are skipped as logos. Each message records every attachment as read, skipped, unreadable or not attached, shown in the activity log.
+- iPhone Mail can forward without attachments, leaving `<name.docx>` in the body. Such a document is recorded as "not attached", and the digest says once to forward again with attachments.
 - Word, Excel, images and HTML go through Workers AI toMarkdown. PowerPoint is unzipped with `fflate`. `.txt` and `.ics` are read as text. Anything else is recorded as unreadable and mentioned once in the digest.
 - The model returns day, month and year as written. Code fills in a missing year: the next occurrence on or after 31 days before the email was sent.
 - The model also returns the weekday when the letter states one. If it doesn't match the date, the date is kept but shown as "(check the date)" in the digest and on the web page; code never moves it, because a misread date moved elsewhere could hide a real event.

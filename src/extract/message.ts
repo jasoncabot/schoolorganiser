@@ -5,13 +5,13 @@ import { MAX_RENDERED_PAGES, type PdfRenderer } from "./render";
 
 export interface Unreadable {
   filename: string;
-  reason: "unsupported format" | "conversion failed";
+  reason: "unsupported format" | "conversion failed" | "not attached";
 }
 
 /** What happened to one attachment, for the household's activity log. */
 export interface AttachmentOutcome {
   filename: string;
-  outcome: "read" | "skipped" | "unreadable";
+  outcome: "read" | "skipped" | "unreadable" | "missing";
 }
 
 export interface ReadMessage {
@@ -38,6 +38,11 @@ const PDF = /\.pdf$/i;
  * as inline parts with a Content-ID.
  */
 export const INLINE_IMAGE_SKIP_BYTES = 50_000;
+/**
+ * iPhone Mail's placeholder for an attachment left out of a forward, e.g. "<Club letter .docx>".
+ * It asks whether to include attachments, and "Don't Include" leaves only this in the body.
+ */
+const OMITTED_ATTACHMENT = /<([^<>\r\n]{1,120}?\.(?:pdf|docx?|pptx?|xlsx?|odt))>/gi;
 /** At most this many images from one PowerPoint go to toMarkdown (each costs an AI call). */
 export const MAX_PPTX_IMAGES = 5;
 
@@ -104,6 +109,13 @@ export async function readMessage(
     }
   }
 
+  const attached = new Set(attachments.map((a) => a.filename.toLowerCase()));
+  for (const filename of omittedAttachments(email.text, email.html)) {
+    if (attached.has(filename.toLowerCase())) continue;
+    unreadable.push({ filename, reason: "not attached" });
+    attachments.push({ filename, outcome: "missing" });
+  }
+
   const date = email.date === undefined ? NaN : Date.parse(email.date);
   return {
     subject: email.subject?.trim() ?? "",
@@ -113,6 +125,14 @@ export async function readMessage(
     unreadable,
     attachments,
   };
+}
+
+function omittedAttachments(text: string | undefined, html: string | undefined): string[] {
+  const bodies = [text ?? "", (html ?? "").replaceAll("&lt;", "<").replaceAll("&gt;", ">")];
+  const names = bodies.flatMap((body) =>
+    [...body.matchAll(OMITTED_ATTACHMENT)].map((m) => (m[1] ?? "").trim().replace(/\s+\./, ".")),
+  );
+  return [...new Set(names)].filter((n) => n !== "");
 }
 
 async function readAttachment(

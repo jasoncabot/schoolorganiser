@@ -9,6 +9,7 @@ import {
   ukTime,
   weekday,
 } from "../uk-time";
+import type { Unreadable } from "../extract/message";
 import { escape } from "../web/html";
 import { COLOURS, layout, type OutboundEmail } from "./outbound";
 
@@ -34,7 +35,7 @@ export interface DigestInput {
   items: StoredItem[];
   children: Child[];
   /** Attachments we couldn't read and haven't mentioned yet. */
-  unreadable: { filename: string; subject: string | null }[];
+  unreadable: { filename: string; subject: string | null; reason: Unreadable["reason"] }[];
   /** Forwarded emails we gave up on and haven't mentioned yet. */
   failed: { receivedAt: string }[];
   /** Notes from recent emails not yet in a digest. */
@@ -78,10 +79,16 @@ export function digestEmail(input: DigestInput): OutboundEmail {
   const upcoming = `${input.appOrigin}/household/upcoming`;
   const more = (shown: Line[], all: Line[]): string | null =>
     all.length > shown.length ? `Plus ${String(all.length - shown.length)} more` : null;
-  const unreadable =
-    input.unreadable.length === 0
+  const missing = input.unreadable.filter((f) => f.reason === "not attached");
+  const broken = input.unreadable.filter((f) => f.reason !== "not attached");
+  const unreadable = [
+    broken.length === 0
       ? null
-      : `We couldn't read ${input.unreadable.map(fileLabel).join(", ")}. Check the original ${input.unreadable.length === 1 ? "email" : "emails"}.`;
+      : `We couldn't read ${broken.map(fileLabel).join(", ")}. Check the original ${broken.length === 1 ? "email" : "emails"}.`,
+    missing.length === 0
+      ? null
+      : `${missing.map(fileLabel).join(", ")} ${missing.length === 1 ? "wasn't" : "weren't"} attached when forwarded. Forward again and choose to include attachments.`,
+  ].filter((p) => p !== null);
 
   const failed = failedNote(input.failed);
 
@@ -130,9 +137,9 @@ export function digestEmail(input: DigestInput): OutboundEmail {
     text.push(failed, "");
     html.push(paragraph(failed, COLOURS.muted));
   }
-  if (unreadable !== null) {
-    text.push(unreadable, "");
-    html.push(paragraph(unreadable, COLOURS.muted));
+  for (const note of unreadable) {
+    text.push(note, "");
+    html.push(paragraph(note, COLOURS.muted));
   }
   text.push(
     "--",
