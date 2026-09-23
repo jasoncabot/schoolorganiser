@@ -17,6 +17,7 @@ Determinism matters most. The whole suite must run in parallel and give the same
 4. **No remote bindings.** Tests never touch Cloudflare's network:
    - `AI` is replaced in the Miniflare config by a local stub Worker. The stub serves recorded fixtures keyed by a hash of the request. An unknown request fails the test, so a changed prompt can't quietly go out to the network.
    - `EMAIL` (sending) is replaced by a stub that records messages so tests can assert on them.
+   - Browser Run isn't bound in tests; `RENDERER` is a stub that returns page images registered with `registerRender()`, or null (as if rendering failed).
    - Outbound `fetch` is blocked.
 5. **Safe in parallel.** Storage is isolated per file. Within a file, tests run with `describe.concurrent` and each uses its own household and address IDs, so there is no shared global state.
 6. **Order-independent.** CI runs the suite with `--sequence.shuffle` and a fixed seed, and then a second time with a different fixed seed.

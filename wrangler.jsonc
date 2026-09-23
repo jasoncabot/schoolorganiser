@@ -19,6 +19,7 @@
   },
   "secrets": { "required": ["SIGNING_KEY", "PRIVACY_FORWARD_TO"] },
   "ai": { "binding": "AI" },
+  "browser": { "binding": "BROWSER" },
   "send_email": [{ "name": "EMAIL", "remote": true }],
   "r2_buckets": [{ "binding": "MAIL", "bucket_name": "schoolorganiser-mail" }],
   "durable_objects": {

@@ -32,3 +32,12 @@ export async function registerMarkdown(
   const data = typeof bytes === "string" ? new TextEncoder().encode(bytes) : bytes;
   await (env.AI as unknown as AiStubRpc).registerMarkdown(data, markdown);
 }
+
+interface RendererStubRpc {
+  registerRender(pdf: Uint8Array, pages: string[]): Promise<void>;
+}
+
+/** Makes the Browser Run stub draw a PDF with these bytes as `pages` (data URLs). */
+export async function registerRender(pdf: Uint8Array, pages: string[]): Promise<void> {
+  await (env as unknown as { RENDERER: RendererStubRpc }).RENDERER.registerRender(pdf, pages);
+}

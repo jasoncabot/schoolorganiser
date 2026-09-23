@@ -19,6 +19,7 @@
   "services": [
     { "binding": "AI", "service": "schoolorganiser-stubs", "entrypoint": "AiStub" },
     { "binding": "EMAIL", "service": "schoolorganiser-stubs", "entrypoint": "EmailStub" },
+    { "binding": "RENDERER", "service": "schoolorganiser-stubs", "entrypoint": "RendererStub" },
   ],
   "r2_buckets": [{ "binding": "MAIL", "bucket_name": "schoolorganiser-mail-test" }],
   "durable_objects": {

@@ -3,6 +3,7 @@ import { systemDeps, type Deps } from "./deps";
 import { runModel } from "./extract/ai";
 import { readMessage, type Unreadable } from "./extract/message";
 import { parseExtraction } from "./extract/parse";
+import { pdfRenderer } from "./extract/render";
 import {
   EXTRACTION_MODEL,
   EXTRACTION_VERSION,
@@ -113,14 +114,23 @@ export class Household extends Agent<Env> {
       this.db.exec("UPDATE messages SET status = 'failed' WHERE id = ?", id);
       return;
     }
-    const message = await readMessage(await object.arrayBuffer(), this.env.AI);
+    const message = await readMessage(
+      await object.arrayBuffer(),
+      this.env.AI,
+      pdfRenderer(this.env),
+    );
     const sentAt = message.sentAt ?? receivedAt;
     let items: ExtractedItem[] = [];
-    if (message.text.trim() !== "") {
+    if (message.text.trim() !== "" || message.images.length > 0) {
       const result = await runModel(
         this.env.AI,
         EXTRACTION_MODEL,
-        extractionRequest({ sentAt, subject: message.subject, text: message.text }),
+        extractionRequest({
+          sentAt,
+          subject: message.subject,
+          text: message.text,
+          images: message.images,
+        }),
       );
       const parsed = parseExtraction(result, sentAt);
       if (parsed === null) throw new Error("UnusableExtraction");
@@ -131,6 +141,7 @@ export class Household extends Agent<Env> {
       items: items.length,
       unreadable: message.unreadable.length,
       chars: message.text.length,
+      pages: message.images.length,
     });
   }
 

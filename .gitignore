@@ -8,5 +8,6 @@ playwright-report/
 test-results/
 public/assets/app.css
 public/assets/fonts/
+public/assets/pdfjs/
 test/stubs/dist/
 public/privacy.html

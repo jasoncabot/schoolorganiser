@@ -72,6 +72,24 @@ export class AiStub extends WorkerEntrypoint<StubEnv> {
   }
 }
 
+/** Stands in for Browser Run: returns page images a test registered for these PDF bytes, else null. */
+export class RendererStub extends WorkerEntrypoint<StubEnv> {
+  async render(pdf: Uint8Array, maxPages: number): Promise<string[] | null> {
+    const pages = await this.env.FIXTURES.getByName("fixtures").get(
+      `render:${await sha256Hex(pdf)}`,
+    );
+    return pages === null ? null : (JSON.parse(pages) as string[]).slice(0, maxPages);
+  }
+
+  /** Test-only: the page images render() should return for a PDF with these bytes. */
+  async registerRender(pdf: Uint8Array, pages: string[]): Promise<void> {
+    await this.env.FIXTURES.getByName("fixtures").set(
+      `render:${await sha256Hex(pdf)}`,
+      JSON.stringify(pages),
+    );
+  }
+}
+
 /** Fixtures registered by tests at runtime. Keys are content hashes, so tests can't collide. */
 export class Fixtures extends DurableObject<StubEnv> {
   private readonly sql = this.ctx.storage.sql;

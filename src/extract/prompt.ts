@@ -117,6 +117,8 @@ export interface ExtractionInput {
   subject: string;
   /** Plain text of the body and attachments. */
   text: string;
+  /** PDF pages as image data URLs, in order. */
+  images?: string[];
 }
 
 export function extractionRequest(input: ExtractionInput): Record<string, unknown> {
@@ -129,10 +131,22 @@ export function extractionRequest(input: ExtractionInput): Record<string, unknow
   });
   const text =
     input.text.length > MAX_INPUT_CHARS ? input.text.slice(0, MAX_INPUT_CHARS) : input.text;
+  const intro = `Email sent on ${sent}.\nSubject: ${input.subject}\n\n${text}`;
+  const images = input.images ?? [];
+  const content =
+    images.length === 0
+      ? intro
+      : [
+          {
+            type: "text",
+            text: `${intro}\n\nThe images are the pages of the PDF attachments, in order. Read dates and tables from the images; use the text above for small print.`,
+          },
+          ...images.map((url) => ({ type: "image_url", image_url: { url } })),
+        ];
   return {
     messages: [
       { role: "system", content: SYSTEM },
-      { role: "user", content: `Email sent on ${sent}.\nSubject: ${input.subject}\n\n${text}` },
+      { role: "user", content },
     ],
     response_format: { type: "json_schema", json_schema: EXTRACTION_SCHEMA },
     temperature: 0,

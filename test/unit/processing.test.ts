@@ -4,10 +4,11 @@ import { describe, expect, it } from "vitest";
 import { householdStub } from "../../src/bindings";
 import { readMessage } from "../../src/extract/message";
 import { EXTRACTION_MODEL, extractionRequest } from "../../src/extract/prompt";
+import { pdfRenderer } from "../../src/extract/render";
 import { Household, MAX_ATTEMPTS, migrate } from "../../src/household";
 import { testDeps } from "../helpers/deps";
-import { mimeEmail } from "../helpers/mime";
-import { registerAiRun } from "../helpers/stubs";
+import { mimeEmail, pdf } from "../helpers/mime";
+import { registerAiRun, registerRender } from "../helpers/stubs";
 
 /** The trip letter, tagged so each test's model request (and so its fixture) is unique. */
 const trip = (tag: string): string =>
@@ -64,13 +65,18 @@ async function received(
 ): Promise<DurableObjectStub<Household>> {
   const key = `mail/${householdId}/m1.eml`;
   await env.MAIL.put(key, raw);
-  const message = await readMessage(new TextEncoder().encode(raw).buffer as ArrayBuffer, env.AI);
+  const message = await readMessage(
+    new TextEncoder().encode(raw).buffer as ArrayBuffer,
+    env.AI,
+    pdfRenderer(env),
+  );
   await registerAiRun(
     EXTRACTION_MODEL,
     extractionRequest({
       sentAt: message.sentAt ?? "",
       subject: message.subject,
       text: message.text,
+      images: message.images,
     }),
     modelOutput,
   );
@@ -217,6 +223,31 @@ describe("processing", () => {
     });
     await process(household, "empty");
     expect(await household.messages()).toMatchObject([{ id: "empty", status: "done" }]);
+  });
+});
+
+describe("PDF page images", () => {
+  it("sends rendered pages to the model with the text", async () => {
+    const letter = pdf([
+      {
+        text: "Year 3 will visit Chester Zoo on Thursday 16th October. Cost £18.50 by 10th October.",
+        x: 50,
+        y: 520,
+      },
+    ]);
+    await registerRender(letter, ["data:image/jpeg;base64,cGFnZQ=="]);
+    const raw = mimeEmail({
+      from: "parent@example.com",
+      subject: "Fwd: Trip (images)",
+      text: "See attached.",
+      attachments: [{ filename: "trip.pdf", contentType: "application/pdf", bytes: letter }],
+    });
+    // The stub only answers a request that includes the page image, so this fails if it's dropped.
+    const household = await received("household-process-images", raw, {
+      response: { items: [TRIP_ITEMS[0]] },
+    });
+    await process(household, "images");
+    expect((await household.items()).map((i) => i.title)).toEqual(["Year 3 trip to Chester Zoo"]);
   });
 });
 

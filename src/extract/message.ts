@@ -1,6 +1,7 @@
 import PostalMime, { type Attachment } from "postal-mime";
 import { readPdfText } from "./pdf";
 import { readPptx } from "./pptx";
+import { MAX_RENDERED_PAGES, type PdfRenderer } from "./render";
 
 export interface Unreadable {
   filename: string;
@@ -13,6 +14,8 @@ export interface ReadMessage {
   sentAt: string | null;
   /** Body and attachment text, ready for extraction. */
   text: string;
+  /** PDF pages drawn as JPEG data URLs, in attachment and page order (at most MAX_RENDERED_PAGES). */
+  images: string[];
   unreadable: Unreadable[];
 }
 
@@ -25,10 +28,15 @@ const PDF = /\.pdf$/i;
 /** At most this many images from one PowerPoint go to toMarkdown (each costs an AI call). */
 export const MAX_PPTX_IMAGES = 5;
 
-/** Parses a raw email and turns its body and attachments into text. */
-export async function readMessage(raw: ArrayBuffer, ai: Ai): Promise<ReadMessage> {
+/** Parses a raw email and turns its body and attachments into text, plus PDF page images. */
+export async function readMessage(
+  raw: ArrayBuffer,
+  ai: Ai,
+  renderer: PdfRenderer,
+): Promise<ReadMessage> {
   const email = await PostalMime.parse(raw, { attachmentEncoding: "arraybuffer" });
   const parts: string[] = [];
+  const images: string[] = [];
   const unreadable: Unreadable[] = [];
 
   const body = email.text?.trim() ?? "";
@@ -49,6 +57,21 @@ export async function readMessage(raw: ArrayBuffer, ai: Ai): Promise<ReadMessage
     if (attachment.disposition === "inline" && attachment.contentId !== undefined) continue;
     const filename = attachment.filename ?? fallbackName(attachment);
     const bytes = asBytes(attachment.content);
+    if (PDF.test(filename) || attachment.mimeType === "application/pdf") {
+      // Pages as images (Browser Run) read tables and layouts best; the text layer helps with
+      // small print. Either is enough on its own.
+      const pages =
+        images.length < MAX_RENDERED_PAGES
+          ? await renderer.render(bytes, MAX_RENDERED_PAGES - images.length)
+          : null;
+      const text =
+        (await readPdfText(bytes)) ?? (await toMarkdown(ai, filename, bytes, "application/pdf"));
+      if (pages !== null) images.push(...pages);
+      if (text !== null && text.trim() !== "")
+        parts.push(`Attachment: ${filename}\n${text.trim()}`);
+      else if (pages === null) unreadable.push({ filename, reason: "conversion failed" });
+      continue;
+    }
     const text = await readAttachment(ai, filename, bytes, attachment.mimeType);
     if (typeof text === "string") {
       if (text.trim() !== "") parts.push(`Attachment: ${filename}\n${text.trim()}`);
@@ -62,6 +85,7 @@ export async function readMessage(raw: ArrayBuffer, ai: Ai): Promise<ReadMessage
     subject: email.subject?.trim() ?? "",
     sentAt: Number.isNaN(date) ? null : new Date(date).toISOString(),
     text: parts.join("\n\n"),
+    images,
     unreadable,
   };
 }
@@ -87,13 +111,6 @@ async function readAttachment(
     } catch {
       return { reason: "conversion failed" };
     }
-  }
-  if (PDF.test(filename) || mimeType === "application/pdf") {
-    const text = await readPdfText(bytes);
-    if (text !== null) return text;
-    return (
-      (await toMarkdown(ai, filename, bytes, "application/pdf")) ?? { reason: "conversion failed" }
-    );
   }
   if (TO_MARKDOWN.test(filename)) {
     return (await toMarkdown(ai, filename, bytes, mimeType)) ?? { reason: "conversion failed" };

@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en-GB">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="robots" content="noindex" />
+    <title>PDF renderer</title>
+  </head>
+  <body>
+    <!--
+      Opened by Browser Run (src/extract/render.ts), never by people. Exposes
+      window.renderPdf(base64, maxPages, scale), which draws each page with our self-hosted
+      pdf.js and returns JPEG data URLs.
+    -->
+    <script type="module">
+      import * as pdfjs from "/assets/pdfjs/pdf.min.mjs";
+      pdfjs.GlobalWorkerOptions.workerSrc = "/assets/pdfjs/pdf.worker.min.mjs";
+
+      window.renderPdf = async (base64, maxPages, scale) => {
+        const data = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
+        const pdf = await pdfjs.getDocument({ data }).promise;
+        const pages = [];
+        for (let n = 1; n <= Math.min(pdf.numPages, maxPages); n++) {
+          const page = await pdf.getPage(n);
+          const viewport = page.getViewport({ scale });
+          const canvas = document.createElement("canvas");
+          canvas.width = Math.ceil(viewport.width);
+          canvas.height = Math.ceil(viewport.height);
+          const context = canvas.getContext("2d");
+          context.fillStyle = "#ffffff";
+          context.fillRect(0, 0, canvas.width, canvas.height);
+          await page.render({ canvasContext: context, viewport }).promise;
+          pages.push(canvas.toDataURL("image/jpeg", 0.8));
+        }
+        return pages;
+      };
+      window.renderPdfReady = true;
+    </script>
+  </body>
+</html>
