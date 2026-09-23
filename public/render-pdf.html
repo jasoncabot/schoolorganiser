@@ -17,7 +17,16 @@
 
       window.renderPdf = async (base64, maxPages, scale) => {
         const data = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
-        const pdf = await pdfjs.getDocument({ data }).promise;
+        const base = "/assets/pdfjs/";
+        const pdf = await pdfjs.getDocument({
+          data,
+          isEvalSupported: false,
+          standardFontDataUrl: `${base}standard_fonts/`,
+          cMapUrl: `${base}cmaps/`,
+          cMapPacked: true,
+          wasmUrl: `${base}wasm/`,
+          iccUrl: `${base}iccs/`,
+        }).promise;
         const pages = [];
         for (let n = 1; n <= Math.min(pdf.numPages, maxPages); n++) {
           const page = await pdf.getPage(n);

@@ -35,7 +35,7 @@ async function renderWithBrowser(
     const page = await browser.newPage();
     page.setDefaultTimeout(TIMEOUT_MS);
     // Our own page, which loads our self-hosted pdf.js (public/render-pdf.html).
-    await page.goto(`${env.APP_ORIGIN}/render-pdf.html`, { waitUntil: "load" });
+    await page.goto(`${env.APP_ORIGIN}/render-pdf`, { waitUntil: "load" });
     await page.waitForFunction("window.renderPdfReady === true");
     // A string expression, not a function: puppeteer would send the function's source, which
     // bundling can change.
