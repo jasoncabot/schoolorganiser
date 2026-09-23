@@ -29,44 +29,84 @@ export function ukDate(date: Date): string {
   return `${WEEKDAYS[weekday] ?? ""} ${String(day)} ${MONTHS[month - 1] ?? ""}`;
 }
 
-export function verificationEmail(options: {
+/** An email whose main job is one link: verification, sign-in, invitation. */
+function linkEmail(options: {
+  subject: string;
+  heading: string;
+  /** Paragraphs before the button. In the plain-text part the last one ends with a colon and the link follows. */
+  before: string[];
+  button: string;
   link: string;
-  expires: Date;
+  /** Paragraphs after the button. */
+  after: string[];
+  /** A quieter final paragraph, e.g. "If this wasn't you, ignore this email." */
+  note: string;
   appOrigin: string;
 }): OutboundEmail {
-  const expires = ukDate(options.expires);
   const hello = `hello@${new URL(options.appOrigin).hostname}`;
   const text = [
-    "Confirm your email",
+    options.heading,
     "",
-    "We received a school email you forwarded to School Organiser.",
-    "",
-    "To start getting a short summary every Sunday evening, confirm your address:",
+    ...options.before.flatMap((p, i) =>
+      i === options.before.length - 1 ? [p.replace(/\.$/, ":")] : [p, ""],
+    ),
     options.link,
     "",
-    `This link works until ${expires}. If you don't confirm, we'll delete what you sent by then.`,
-    "",
-    "If this wasn't you, ignore this email.",
+    ...options.after.flatMap((p) => [p, ""]),
+    options.note,
     "",
     "--",
     `School Organiser · Forward school emails to ${hello}`,
     `Privacy: ${options.appOrigin}/privacy`,
   ].join("\n");
-
+  const paragraph = (p: string, margin = 16): string =>
+    `<p style="margin:0 0 ${String(margin)}px">${escape(p)}</p>`;
+  const html = [
+    ...options.before.map((p, i) => paragraph(p, i === options.before.length - 1 ? 24 : 16)),
+    `<p style="margin:0 0 24px"><a href="${escape(options.link)}" style="display:inline-block;background:#00703c;color:#ffffff;font-weight:bold;text-decoration:none;padding:10px 16px;box-shadow:0 2px 0 #002d18">${escape(options.button)}</a></p>`,
+    ...options.after.map((p) => paragraph(p)),
+    `<p style="margin:0 0 16px;color:#505a5f">${escape(options.note)}</p>`,
+  ].join("\n");
   return {
-    subject: "Confirm your email for School Organiser",
+    subject: options.subject,
     text,
-    html: layout(
-      "Confirm your email",
-      `<p style="margin:0 0 16px">We received a school email you forwarded to School Organiser.</p>
-<p style="margin:0 0 24px">To start getting a short summary every Sunday evening, confirm your address.</p>
-<p style="margin:0 0 24px"><a href="${escape(options.link)}" style="display:inline-block;background:#00703c;color:#ffffff;font-weight:bold;text-decoration:none;padding:10px 16px;box-shadow:0 2px 0 #002d18">Confirm my email</a></p>
-<p style="margin:0 0 16px">This link works until ${escape(expires)}. If you don't confirm, we'll delete what you sent by then.</p>
-<p style="margin:0 0 16px;color:#505a5f">If this wasn't you, ignore this email.</p>`,
-      options.appOrigin,
-      hello,
-    ),
+    html: layout(options.heading, html, options.appOrigin, hello),
   };
+}
+
+export function verificationEmail(options: {
+  link: string;
+  expires: Date;
+  appOrigin: string;
+}): OutboundEmail {
+  return linkEmail({
+    subject: "Confirm your email for School Organiser",
+    heading: "Confirm your email",
+    before: [
+      "We received a school email you forwarded to School Organiser.",
+      "To start getting a short summary every Sunday evening, confirm your address.",
+    ],
+    button: "Confirm my email",
+    link: options.link,
+    after: [
+      `This link works until ${ukDate(options.expires)}. If you don't confirm, we'll delete what you sent by then.`,
+    ],
+    note: "If this wasn't you, ignore this email.",
+    appOrigin: options.appOrigin,
+  });
+}
+
+export function signInEmail(options: { link: string; appOrigin: string }): OutboundEmail {
+  return linkEmail({
+    subject: "Sign in to School Organiser",
+    heading: "Sign in",
+    before: ["Use this link to sign in to School Organiser."],
+    button: "Sign in",
+    link: options.link,
+    after: ["The link works for 30 minutes."],
+    note: "If you didn't ask to sign in, ignore this email. Nobody can sign in without it.",
+    appOrigin: options.appOrigin,
+  });
 }
 
 function layout(heading: string, body: string, appOrigin: string, hello: string): string {

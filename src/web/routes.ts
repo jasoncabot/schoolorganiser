@@ -1,11 +1,17 @@
 import type { Deps } from "../deps";
 import { confirmVerification, readVerificationToken } from "../verification";
+import { householdPage } from "./household";
 import { html, page } from "./html";
+import { confirmSignIn, signIn, signOut } from "./sign-in";
 
 /** Worker-rendered pages. Static pages and assets are served by Workers static assets first. */
 export async function handleRequest(request: Request, env: Env, deps: Deps): Promise<Response> {
   const url = new URL(request.url);
   if (url.pathname === "/verify") return verify(request, url, env, deps);
+  if (url.pathname === "/sign-in") return signIn(request, env, deps);
+  if (url.pathname === "/sign-in/confirm") return confirmSignIn(request, env, deps);
+  if (url.pathname === "/sign-out") return signOut(request, env);
+  if (url.pathname === "/household") return householdPage(request, env, deps);
   if (url.pathname === "/__test/outbox") return testOutbox(url, env);
   return env.ASSETS.fetch(request);
 }

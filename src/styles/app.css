@@ -96,6 +96,31 @@
       @apply font-mono text-[0.9em];
     }
   }
+  .button-secondary {
+    @apply inline-block cursor-pointer bg-panel px-4 py-2 font-semibold text-ink no-underline;
+    box-shadow: 0 2px var(--color-muted);
+  }
+  .label {
+    @apply mb-1 block font-bold;
+  }
+  .hint {
+    @apply mb-2 text-muted;
+  }
+  .input,
+  .select {
+    @apply mb-6 block w-full max-w-md border-2 border-ink bg-white px-2 py-1.5;
+  }
+  .input:focus,
+  .select:focus {
+    @apply outline-3 outline-offset-0 outline-focus;
+    box-shadow: inset 0 0 0 2px var(--color-ink);
+  }
+  .error-summary {
+    @apply mb-8 border-4 border-error p-4 font-bold;
+  }
+  .error-summary p {
+    @apply mb-0;
+  }
   .inset {
     @apply my-6 border-l-8 border-rule py-2 pl-4;
   }

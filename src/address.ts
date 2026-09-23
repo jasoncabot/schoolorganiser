@@ -2,6 +2,8 @@ import { DurableObject } from "cloudflare:workers";
 
 /** Send at most one verification email per address per day. */
 export const VERIFICATION_RESEND_MS = 24 * 60 * 60 * 1000;
+/** Send at most one sign-in email per address per two minutes. */
+export const SIGN_IN_RESEND_MS = 2 * 60 * 1000;
 
 export type AddressState =
   | { status: "unknown" }
@@ -29,7 +31,8 @@ export class Address extends DurableObject<Env> {
         first_seen TEXT NOT NULL,
         household_id TEXT,
         verified_at TEXT,
-        verification_sent_at TEXT
+        verification_sent_at TEXT,
+        sign_in_sent_at TEXT
       );
       CREATE TABLE IF NOT EXISTS pending (
         key TEXT PRIMARY KEY,
@@ -44,6 +47,9 @@ export class Address extends DurableObject<Env> {
       .map((c) => c.name);
     if (!columns.includes("verification_sent_at")) {
       this.sql.exec("ALTER TABLE address ADD COLUMN verification_sent_at TEXT");
+    }
+    if (!columns.includes("sign_in_sent_at")) {
+      this.sql.exec("ALTER TABLE address ADD COLUMN sign_in_sent_at TEXT");
     }
   }
 
@@ -98,6 +104,23 @@ export class Address extends DurableObject<Env> {
     const last = row.verification_sent_at === null ? null : Date.parse(row.verification_sent_at);
     if (last !== null && Date.parse(now) - last < VERIFICATION_RESEND_MS) return false;
     this.sql.exec("UPDATE address SET verification_sent_at = ? WHERE id = 1", now);
+    return true;
+  }
+
+  /**
+   * Whether to send a sign-in email now: only to verified addresses, and at most once per
+   * SIGN_IN_RESEND_MS. Records the send time when it returns true.
+   */
+  claimSignInSend(now: string): boolean {
+    const row = this.sql
+      .exec<{ household_id: string | null; sign_in_sent_at: string | null }>(
+        "SELECT household_id, sign_in_sent_at FROM address WHERE id = 1",
+      )
+      .toArray()[0];
+    if (row?.household_id == null) return false;
+    const last = row.sign_in_sent_at === null ? null : Date.parse(row.sign_in_sent_at);
+    if (last !== null && Date.parse(now) - last < SIGN_IN_RESEND_MS) return false;
+    this.sql.exec("UPDATE address SET sign_in_sent_at = ? WHERE id = 1", now);
     return true;
   }
 
