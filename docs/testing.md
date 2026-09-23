@@ -1,84 +1,53 @@
 # Testing
 
-Determinism matters most. The whole suite must run in parallel and give the same result every time, with no network access.
+The suite runs in parallel, offline, and gives the same result every time.
 
 ## Tools
 
-- **Unit and integration:** Vitest with `@cloudflare/vitest-plugin`, which runs tests inside `workerd` using Miniflare. This package replaced `@cloudflare/vitest-pool-workers`. Pin Vitest to the major version the plugin supports (4.x at the time of writing).
-- **End to end:** Playwright (`@playwright/test`), run against `wrangler dev` locally. Never in Workers Builds.
-- **Lint and format:** ESLint (flat config) with `typescript-eslint` in strict, type-checked mode, plus Prettier. `tsc --noEmit` runs with `strict`.
-- **Coverage:** Istanbul, because V8 coverage isn't supported in `workerd`.
+- Vitest with `@cloudflare/vitest-plugin`: tests run in `workerd` on Miniflare.
+- Playwright against `wrangler dev`, locally only.
+- ESLint (`typescript-eslint` strict, type-checked), Prettier and strict `tsc`.
+- Istanbul coverage (V8 coverage doesn't work in `workerd`).
 
-## Rules for determinism
+## Determinism rules
 
-1. **No hidden time.** Code never calls `Date.now()` or `new Date()` directly. It takes a `Clock` from an injected `Deps` object. Tests use a fixed clock. (Vitest fake timers don't reach R2 or the other simulators, and `workerd` freezes time during I/O, so we can't rely on them.)
-2. **No hidden randomness.** IDs, tokens and nonces come from an injected `Ids` / `Random`. Tests use a seeded generator. Every test starts from its own seed, derived from its name.
-3. **Fixed keys.** The test config binds obviously fake signing keys, e.g. `test-signing-key-not-a-secret`. Signed links in snapshots are therefore stable.
-4. **No remote bindings.** Tests never touch Cloudflare's network:
-   - `AI` is replaced in the Miniflare config by a local stub Worker. The stub serves recorded fixtures keyed by a hash of the request. An unknown request fails the test, so a changed prompt can't quietly go out to the network.
-   - `EMAIL` (sending) is replaced by a stub that records messages so tests can assert on them.
-   - Browser Run isn't bound in tests; `RENDERER` is a stub that returns page images registered with `registerRender()`, or null (as if rendering failed).
-   - Outbound `fetch` is blocked.
-5. **Safe in parallel.** Storage is isolated per file. Within a file, tests run with `describe.concurrent` and each uses its own household and address IDs, so there is no shared global state.
-6. **Order-independent.** CI runs the suite with `--sequence.shuffle` and a fixed seed, and then a second time with a different fixed seed.
-7. **Timezone edge cases.** Digest and retention tests cover the BST/GMT changeovers (last Sunday of March and of October).
+- **Time, ids and randomness** come from `Deps`. Tests use `testDeps(name)`: a fixed clock and a generator seeded from the test's name. ESLint rejects `Date.now()`, `new Date()`, `Math.random()`, `randomUUID()` and `getRandomValues()` outside `src/deps.ts`. Vitest fake timers don't reach R2, and `workerd` freezes time during I/O, so they aren't used.
+- **No scheduled work.** `test/wrangler.test.jsonc` sets `SCHEDULED_WORK` to `"0"`, because an alarm runs with the real clock. Tests call `processPending(testDeps(…))`, `purgeExpired(now)` and `purge(now)` through `runInDurableObject`, and check `purgeDue()`.
+- **No network.** `AI`, `EMAIL` and `RENDERER` are service bindings to the stub Worker in `test/stubs/`. The AI stub answers only requests a test registered, so a changed prompt fails loudly.
+- **Fixed keys**, e.g. `test-signing-key-not-a-secret`.
+- **Parallel and shuffled.** Storage is isolated per file; tests in a file use their own ids. `npm run test:shuffle` runs twice with seeds 1 and 2.
+- **Distinct content per test.** Stub fixtures are keyed by content, so concurrent tests must send different content (tag the subject with the test name).
 
-## What we test
+## Helpers
 
-- **Parsing:** MIME emails (forwarded inline and as `.eml` attachments), PDF, DOCX and PPTX text extraction, and recording unsupported `.ppt`/`.doc` files.
-- **Sender check:** SPF/DKIM/DMARC pass and fail cases, plus verified, pending and unknown senders.
-- **Verification and magic links:** signing, expiry and replay.
-- **Extraction:** turning AI output into `items`, including bad or partial JSON.
-- **Digest:** exact output checked by snapshot, including a quiet week, "Coming up", the line cap and "plus N more".
-- **Retention alarms:** checked with `runDurableObjectAlarm`: fires at the next expiry, re-arms, and sets nothing when the household is empty.
-- **Web routes:** sign-in, children and schools, household members, pausing the digest, deleting data.
+- `test/helpers/deps.ts`: `testDeps()`, `fixedClock()`.
+- `test/helpers/stubs.ts`: `sentTo()`, `registerAiRun()`, `registerMarkdown()`, `registerRender()`.
+- `test/helpers/mime.ts`: raw MIME emails, minimal `.pptx` files and one-page PDFs.
+- `test/helpers/email.ts`: a fake inbound message and Cloudflare authentication headers.
+
+## Playwright
+
+- Runs a fresh `wrangler dev` with empty state each time, so tests use fixed addresses.
+- Inbound mail is posted to `/cdn-cgi/local/email` with an `ARC-Authentication-Results` header, as Email Routing would add.
+- `GET /__test/outbox?to=` reads the email stub. It exists only when `E2E_TEST_ROUTES` is `"1"` (test config only).
+- `baseURL` is `http://localhost:8787` to match `APP_ORIGIN`; form posts are checked against it.
 
 ## Choosing the model
 
-`npm run eval:extraction` sends the fictional letters in `test/fixtures/letters/` to real Workers AI models, using the production request, and scores them against each letter's expected items. It needs `CLOUDFLARE_ACCOUNT_ID` and a token with Workers AI access. Run it by hand before changing the prompt or `EXTRACTION_MODEL`; it isn't part of `npm run check`. Add a letter whenever a real one is misread (rewritten with fictional names).
+`npm run eval:extraction` sends the fictional letters in `test/fixtures/letters/` to real models with the production request and scores them. It needs `CLOUDFLARE_ACCOUNT_ID` and a token with Workers AI access. Run it by hand before changing the prompt or model. When a real letter is misread, add a fictional version of it.
 
 ## Fixtures
 
-- All fixtures are fictional: made-up schools, children and addresses on `example.com`. Never commit real mail.
-- Sample attachments (PDF, DOCX, PPTX) are generated by a script in `test/fixtures/` from fictional text. The binaries are committed so tests don't depend on the generator.
-- AI fixtures are recorded once from Workers AI, using a script run by hand. Output is checked in as JSON and reviewed like code.
-
-## End to end
-
-Playwright drives the real Worker under `wrangler dev --env e2e`, with the same AI and email stubs as the integration tests:
-
-1. POST a fictional forwarded email to `/cdn-cgi/local/email?from=…&to=…`.
-2. Read the verification email from the outbox stub and open the link in the browser.
-3. Sign in by magic link, then add a child and a school.
-4. Forward a letter with a PDF and a PPTX attachment.
-5. Move the fixed clock to Sunday evening and trigger the digest.
-6. Check the digest text with a snapshot, and check the upcoming items on the web page.
-
-- Local mail has no Cloudflare authentication results, so e2e emails carry an `ARC-Authentication-Results` header from `mx.cloudflare.net`, as Email Routing would add.
-- `GET /__test/outbox?to=` returns what the email stub has sent. It exists only when `E2E_TEST_ROUTES` is `"1"`, which only `test/wrangler.test.jsonc` sets.
-- Every Playwright run starts a fresh `wrangler dev` with empty state (`.wrangler/e2e-state`), so tests can use fixed addresses and never depend on earlier runs.
-
-## How it's wired
-
-- `test/wrangler.test.jsonc` mirrors `wrangler.jsonc`, but `AI` and `EMAIL` are service bindings to the stub Worker (`test/stubs/`). Vitest and `wrangler dev` for Playwright both use it. Keep its bindings in step with `wrangler.jsonc`.
-- `test/global-setup.ts` bundles the stubs into `test/stubs/dist/`, and Vitest loads that as an auxiliary Worker.
-- Tests import `env` and `exports` from `cloudflare:workers`. The versions exported by `cloudflare:test` are deprecated.
-- `test/helpers/deps.ts` provides `testDeps(name)` (fixed clock, seeded IDs and bytes) and `fixedClock()`.
-- `test/helpers/stubs.ts` provides `sentTo(address)`, which reads the email stub's outbox, and `registerAiRun()` / `registerMarkdown()`, which tell the AI stub what to return. Fixtures are keyed by the request's content, so tests running at the same time must send different content (e.g. tag the subject with the test's name); otherwise they overwrite each other's answers.
-- `test/helpers/mime.ts` builds raw MIME emails, minimal `.pptx` files and minimal one-page PDFs with a text layer, all deterministically.
-- `test/wrangler.test.jsonc` sets `SCHEDULED_WORK` to `"0"`: nothing is scheduled (processing, re-reading or purges), because an alarm would run with the real clock. Tests call `processPending(testDeps(…))` and `purgeExpired(now)` / `purge(now)` through `runInDurableObject`, and check when a purge would be due with `purgeDue()`.
-- ESLint fails the build if code under `src/` or `test/` calls `Date.now()`, `new Date()`, `Math.random()`, `randomUUID()` or `getRandomValues()`. Only `src/deps.ts` may.
-- The Agents SDK scheduler reads the real clock internally. Test scheduled work by calling the callback directly with test deps, and check the stored schedule time. Don't wait for an alarm to fire in real time.
-- When a stub throws across RPC, workerd logs "uncaught exception" and "hung". That's expected in the stub tests that check for failures.
+Fictional only: made-up schools, children and `example.com` addresses. Never commit real mail.
 
 ## Commands
 
-- `npm test`: runs Vitest.
-- `npm run test:shuffle`: runs Vitest twice, shuffled with seeds 1 and 2.
-- `npm run test:coverage`: runs Vitest with Istanbul coverage.
-- `npm run test:e2e`: builds the CSS and fonts, then runs Playwright. Where the installed Chromium doesn't match Playwright's version, set `PLAYWRIGHT_CHROMIUM_EXECUTABLE`.
-- `npm run lint`: runs ESLint, Prettier (check) and `tsc` for both tsconfigs.
-- `npm run check:ci`: checks the generated types are current, then runs lint and the shuffled tests. Workers Builds runs this before deploying.
-- `npm run check`: runs `check:ci` plus Playwright. Run it locally before every push to `main`: it's the only place the e2e tests run.
+- `npm test`, `npm run test:shuffle`, `npm run test:coverage`
+- `npm run test:e2e` builds assets, then runs Playwright. Set `PLAYWRIGHT_CHROMIUM_EXECUTABLE` if the installed Chromium doesn't match.
+- `npm run lint`: ESLint, Prettier and `tsc` for both tsconfigs.
+- `npm run check:ci`: types check, lint and shuffled tests (Workers Builds).
+- `npm run check`: `check:ci` plus Playwright. Run before every push.
 
-Coverage has no threshold yet. Set one in `vitest.config.ts` once the features in steps 3 to 8 land.
+## Known noise
+
+When a stub throws across RPC, `workerd` logs "uncaught exception" and "hung". Expected in the tests that check failures.

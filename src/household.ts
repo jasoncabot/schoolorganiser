@@ -3,7 +3,8 @@ import { currentYearGroup, yearGroupLabel, type Child, type ChildInput } from ".
 import { systemDeps, type Deps } from "./deps";
 import { runModel } from "./extract/ai";
 import { readMessage, type Unreadable } from "./extract/message";
-import { namesAClass, parseExtraction } from "./extract/parse";
+import { parseExtraction } from "./extract/parse";
+import { relevance } from "./extract/relevance";
 import { pdfRenderer } from "./extract/render";
 import {
   EXTRACTION_MODEL,
@@ -11,7 +12,10 @@ import {
   extractionRequest,
   type ExtractedItem,
 } from "./extract/prompt";
+import { migrate } from "./household-schema";
 import { addDays, MAIL_DAYS, purgeTime } from "./retention";
+
+export { migrate };
 
 export interface ReceivedMail {
   id: string;
@@ -42,14 +46,11 @@ const REREAD_DELAY_SECONDS = 60;
 /** Wait between attempts after a transient failure (e.g. Workers AI unavailable). */
 const RETRY_SECONDS = 5 * 60;
 
-/**
- * One per household. Holds members, messages, extracted items and (later) children, schools and
- * digest history. Retention alarms arrive in plan step 6.
- */
+/** One per household: members, children, messages, extracted items and their retention. */
 export class Household extends Agent<Env> {
   private schemaReady = false;
 
-  /** On start, make sure data stored before retention existed has a purge scheduled. */
+  /** Arms the purge on start, so data stored before it existed is covered. */
   override async onStart(): Promise<void> {
     await this.armPurge();
   }
@@ -72,7 +73,6 @@ export class Household extends Agent<Env> {
       mail.expiresAt,
     );
     await this.armPurge();
-    // Tests turn this off and call processPending() with test deps instead.
     if (this.env.SCHEDULED_WORK !== "0") {
       await this.schedule(0, "processScheduled", undefined, { idempotent: true });
     }
@@ -195,7 +195,6 @@ export class Household extends Agent<Env> {
   ): Promise<void> {
     const object = await this.env.MAIL.get(key);
     if (object === null) {
-      // Gone (expired or deleted): nothing to process.
       this.db.exec("UPDATE messages SET status = 'failed' WHERE id = ?", id);
       return;
     }
@@ -231,17 +230,16 @@ export class Household extends Agent<Env> {
       if (parsed === null) throw new Error("UnusableExtraction");
       items = parsed;
     }
-    this.store(
-      id,
+    this.store(id, {
       sentAt,
-      message.subject,
-      message.text,
-      message.unreadable,
+      subject: message.subject,
+      text: message.text,
+      unreadable: message.unreadable,
       items,
       children,
       childrenVersion,
-      deps,
-    );
+      processedAt: now.toISOString(),
+    });
     console.log("message processed", {
       items: items.length,
       unreadable: message.unreadable.length,
@@ -252,39 +250,22 @@ export class Household extends Agent<Env> {
 
   private store(
     id: string,
-    sentAt: string,
-    subject: string,
-    text: string,
-    unreadable: Unreadable[],
-    items: ExtractedItem[],
-    children: Child[],
-    childrenVersion: number,
-    deps: Deps,
+    read: {
+      sentAt: string;
+      subject: string;
+      text: string;
+      unreadable: Unreadable[];
+      items: ExtractedItem[];
+      children: Child[];
+      childrenVersion: number;
+      processedAt: string;
+    },
   ): void {
-    // The model names children; store their ids. With no children set up, everything is relevant.
-    const matching = (names: string[]): string[] => {
-      const wanted = new Set(names.map((n) => n.toLowerCase()));
-      return children.filter((c) => wanted.has(c.name.toLowerCase())).map((c) => c.id);
-    };
-    // Returns [child_ids, maybe_child_ids] as stored JSON. If the letter names a class and the
-    // model matched a child whose class we don't know, it can only be a "maybe" for them, whatever
-    // the model said.
-    const relevance = (item: ExtractedItem): [string | null, string] => {
-      if (children.length === 0) return [null, "[]"];
-      let sure = matching(item.forChildren ?? []);
-      let maybe = matching(item.maybeChildren);
-      if (namesAClass(item.child)) {
-        const unknownClass = new Set(children.filter((c) => c.className === null).map((c) => c.id));
-        maybe = [...maybe, ...sure.filter((id) => unknownClass.has(id))];
-        sure = sure.filter((id) => !unknownClass.has(id));
-      }
-      maybe = [...new Set(maybe)].filter((id) => !sure.includes(id));
-      return [JSON.stringify(sure), JSON.stringify(maybe)];
-    };
     this.ctx.storage.transactionSync(() => {
       this.db.exec("DELETE FROM items WHERE message_id = ?", id);
       this.db.exec("DELETE FROM unreadable WHERE message_id = ?", id);
-      items.forEach((item, index) => {
+      read.items.forEach((item, index) => {
+        const { childIds, maybeChildIds } = relevance(item, read.children);
         this.db.exec(
           `INSERT INTO items (id, message_id, date, time, kind, title, cost, location, school, child, confidence, expires_at, child_ids, maybe_child_ids)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -300,10 +281,11 @@ export class Household extends Agent<Env> {
           item.child,
           item.confidence,
           addDays(new Date(`${item.date}T00:00:00.000Z`), MAIL_DAYS).toISOString(),
-          ...relevance(item),
+          childIds === null ? null : JSON.stringify(childIds),
+          JSON.stringify(maybeChildIds),
         );
       });
-      for (const file of unreadable) {
+      for (const file of read.unreadable) {
         this.db.exec(
           "INSERT INTO unreadable (message_id, filename, reason) VALUES (?, ?, ?)",
           id,
@@ -315,12 +297,12 @@ export class Household extends Agent<Env> {
         `UPDATE messages SET status = 'done', subject = ?, sent_at = ?, body_text = ?, processed_at = ?,
            extraction_version = ?, children_version = ?, attempts = 0
          WHERE id = ?`,
-        subject,
-        sentAt,
-        text,
-        deps.clock.now().toISOString(),
+        read.subject,
+        read.sentAt,
+        read.text,
+        read.processedAt,
         EXTRACTION_VERSION,
-        childrenVersion,
+        read.childrenVersion,
         id,
       );
     });
@@ -503,86 +485,6 @@ export class Household extends Agent<Env> {
       .toArray()
       .map((u) => ({ messageId: u.message_id, filename: u.filename, reason: u.reason }));
   }
-}
-
-/** Creates or upgrades the household's tables. Safe to run on every start. */
-export function migrate(sql: SqlStorage): void {
-  sql.exec(`
-    CREATE TABLE IF NOT EXISTS messages (
-      id TEXT PRIMARY KEY,
-      r2_key TEXT NOT NULL,
-      received_at TEXT NOT NULL,
-      expires_at TEXT NOT NULL
-    );
-    CREATE TABLE IF NOT EXISTS members (
-      address TEXT PRIMARY KEY,
-      joined_at TEXT NOT NULL
-    );
-    CREATE TABLE IF NOT EXISTS items (
-      id TEXT PRIMARY KEY,
-      message_id TEXT NOT NULL,
-      date TEXT NOT NULL,
-      time TEXT,
-      kind TEXT NOT NULL,
-      title TEXT NOT NULL,
-      cost TEXT,
-      location TEXT,
-      school TEXT,
-      child TEXT,
-      confidence TEXT NOT NULL,
-      expires_at TEXT NOT NULL
-    );
-    CREATE INDEX IF NOT EXISTS items_by_date ON items (date);
-    CREATE TABLE IF NOT EXISTS children (
-      id TEXT PRIMARY KEY,
-      name TEXT NOT NULL,
-      school TEXT NOT NULL,
-      year_group INTEGER NOT NULL,
-      year_group_as_of INTEGER NOT NULL,
-      class_name TEXT,
-      created_at TEXT NOT NULL
-    );
-    CREATE TABLE IF NOT EXISTS meta (
-      key TEXT PRIMARY KEY,
-      value INTEGER NOT NULL
-    );
-    CREATE TABLE IF NOT EXISTS unreadable (
-      message_id TEXT NOT NULL,
-      filename TEXT NOT NULL,
-      reason TEXT NOT NULL,
-      mentioned_at TEXT
-    );
-  `);
-  // Messages stored before processing existed (plan steps 3 and 4) lack these columns.
-  const columns = new Set(
-    sql
-      .exec<{ name: string }>("SELECT name FROM pragma_table_info('messages')")
-      .toArray()
-      .map((c) => c.name),
-  );
-  const added: [string, string][] = [
-    ["status", "TEXT NOT NULL DEFAULT 'new'"],
-    ["attempts", "INTEGER NOT NULL DEFAULT 0"],
-    ["subject", "TEXT"],
-    ["sent_at", "TEXT"],
-    ["body_text", "TEXT"],
-    ["processed_at", "TEXT"],
-    // Messages processed before versioning count as version 1.
-    ["extraction_version", "INTEGER NOT NULL DEFAULT 1"],
-    ["children_version", "INTEGER NOT NULL DEFAULT 0"],
-  ];
-  for (const [name, definition] of added) {
-    if (!columns.has(name)) sql.exec(`ALTER TABLE messages ADD COLUMN ${name} ${definition}`);
-  }
-  const itemColumns = new Set(
-    sql
-      .exec<{ name: string }>("SELECT name FROM pragma_table_info('items')")
-      .toArray()
-      .map((c) => c.name),
-  );
-  if (!itemColumns.has("child_ids")) sql.exec("ALTER TABLE items ADD COLUMN child_ids TEXT");
-  if (!itemColumns.has("maybe_child_ids"))
-    sql.exec("ALTER TABLE items ADD COLUMN maybe_child_ids TEXT");
 }
 
 function errorName(error: unknown): string {

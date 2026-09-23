@@ -10,9 +10,7 @@ export const EXTRACTION_MODEL = "@cf/mistralai/mistral-small-3.1-24b-instruct";
 
 /**
  * Bump when reading or extraction changes in a way worth re-running on stored mail (prompt,
- * model, PDF layout). Messages processed by an older version are re-read the next time the
- * household processes mail. History: 1 first release; 2 unpdf column layout, code-resolved
- * years, larger answers; 3 PDF page images, which children each item is for; 4 Quick Action rendering, "maybe" for unmatched class names.
+ * model, PDF layout). Messages read by an older version are re-read on the next processing run.
  */
 export const EXTRACTION_VERSION = 4;
 

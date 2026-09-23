@@ -12,11 +12,9 @@ export interface TextRun {
 }
 
 /**
- * Text from a PDF's text layer, as "Page N" sections, using unpdf (pdf.js built for serverless),
- * as in Cloudflare's R2 "summarise PDF" tutorial. Workers AI toMarkdown dropped most of the text
- * from a real school newsletter, and plain pdf.js text interleaves columns, so each page is laid
- * out column by column (see layoutPage). Returns null for PDFs with too little text (usually
- * scans) or that can't be read.
+ * Text from a PDF's text layer, as "Page N" sections, using unpdf. Plain pdf.js text interleaves
+ * columns, so each page is laid out column by column (see layoutPage). Returns null for PDFs with
+ * too little text (usually scans) or that can't be read.
  */
 export async function readPdfText(bytes: Uint8Array): Promise<string | null> {
   const pages: string[] = [];

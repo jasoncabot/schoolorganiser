@@ -1,6 +1,7 @@
 import { DurableObject } from "cloudflare:workers";
 import { systemDeps } from "./deps";
 import { purgeTime } from "./retention";
+import { addMissingColumns } from "./sql";
 
 /** Send at most one verification email per address per day. */
 export const VERIFICATION_RESEND_MS = 24 * 60 * 60 * 1000;
@@ -59,17 +60,8 @@ export class Address extends DurableObject<Env> {
         expires_at TEXT NOT NULL
       );
     `);
-    // Addresses first seen before these columns existed lack them.
-    const columns = sql
-      .exec<{ name: string }>("SELECT name FROM pragma_table_info('address')")
-      .toArray()
-      .map((c) => c.name);
-    if (!columns.includes("verification_sent_at")) {
-      sql.exec("ALTER TABLE address ADD COLUMN verification_sent_at TEXT");
-    }
-    if (!columns.includes("sign_in_sent_at")) {
-      sql.exec("ALTER TABLE address ADD COLUMN sign_in_sent_at TEXT");
-    }
+    // Columns added after the first addresses were stored.
+    addMissingColumns(sql, "address", { verification_sent_at: "TEXT", sign_in_sent_at: "TEXT" });
   }
 
   /** Alarm: deletes expired held mail by the real clock. */
