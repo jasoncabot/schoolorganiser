@@ -21,7 +21,7 @@ Settled with the owner. Don't reopen without asking. Replace a decision when it 
 - An unknown sender's mail is held for 7 days and they get a signed verification link (at most one a day). Confirming creates a household, moves the held mail into it and signs them in.
 - A household can have several verified addresses; one digest goes to all of them. Members invite others by a 7-day link. An address in another household can't join (no merging).
 - Sign-in is by emailed link: 30 minutes, verified addresses only, at most one every two minutes, same answer for unknown addresses. Sessions are signed cookies (HttpOnly, Secure, SameSite=Lax, 30 days), re-checked against the address on every request.
-- The household page shows everything coming up (from today, grouped by day), and lets the signed-in member stop or restart their own weekly email.
+- The household page shows everything coming up (from today, grouped by day), each item linking to the email it came from, shown as the text we read, and lets the signed-in member stop or restart their own weekly email.
 - "Delete your household's data" deletes everything for every member, after a confirmation that names how many others it affects. A member of a household with others can instead leave, which forgets only their address. The last member can only delete.
 - Links from emails show a button; only POST changes anything, because mail scanners follow links. POSTs with a foreign `Origin` are refused.
 
@@ -39,6 +39,7 @@ Settled with the owner. Don't reopen without asking. Replace a decision when it 
 - PDFs: page images from Browser Run's `screenshot` Quick Action (at most 10 pages per message) plus the text layer from `unpdf`, laid out column by column. No Workers AI model accepts a PDF file. toMarkdown is the fallback for scans.
 - Word, Excel, images and HTML go through Workers AI toMarkdown. PowerPoint is unzipped with `fflate`. `.txt` and `.ics` are read as text. Anything else is recorded as unreadable and mentioned once in the digest.
 - The model returns day, month and year as written. Code fills in a missing year: the next occurrence on or after 31 days before the email was sent.
+- The model also returns the weekday when the letter states one. If it doesn't match the date, the date is kept but shown as "(check the date)" in the digest and on the web page; code never moves it, because a misread date moved elsewhere could hide a real event.
 - Item kinds: event, deadline, payment, kit, timing, closure, other. Weekly routines are skipped unless they start or change on a date.
 - Processing is retried 5 minutes apart, up to 3 attempts. Bumping `EXTRACTION_VERSION` re-reads stored mail.
 
@@ -50,7 +51,7 @@ Settled with the owner. Don't reopen without asking. Replace a decision when it 
 - Items for "maybe" children read "Oak class (may be Ada's)". Repeats (same date, time, title and children) are shown once.
 - A quiet week sends "Nothing on this week."
 - Each unreadable attachment, and each forwarded email we gave up on after 3 attempts, is mentioned in one digest only.
-- Sent from a no-reply address; replies are dropped. Every digest has a stop link and one-click `List-Unsubscribe` headers (RFC 8058). Stopping stops digests to that address only; the household and its data stay.
+- Sent from a no-reply address with `Auto-Submitted: auto-generated` (all our emails) and a `List-Id` (the digest), so auto-replies stay quiet and mail apps can filter it; replies are dropped. Email Service sets `Message-ID` itself. Every digest has a stop link and one-click `List-Unsubscribe` headers (RFC 8058). Stopping stops digests to that address only; the household and its data stay.
 
 ## Privacy and retention
 

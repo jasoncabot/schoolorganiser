@@ -165,6 +165,9 @@
   .list {
     @apply mb-6 list-disc pl-6;
   }
+  .email-text {
+    @apply mb-8 rounded-md bg-panel p-4 break-words whitespace-pre-wrap;
+  }
   .rule {
     @apply my-8 border-rule;
   }

@@ -85,6 +85,8 @@ function item(overrides: Partial<StoredItem>): StoredItem {
     expiresAt: "2026-01-11T00:00:00.000Z",
     childIds: ["c-ada"],
     maybeChildIds: [],
+    dateUnsure: false,
+    source: { subject: "Fwd: Letter", receivedAt: "2025-10-08T08:00:00.000Z" },
     ...overrides,
   };
 }
@@ -172,6 +174,12 @@ describe("digestEmail", () => {
       ],
     });
     expect(email.text).toContain("- Ada: Register\n- Ada: Swimming, 9am\n- Bo: Swimming, 9am\n\n");
+  });
+
+  it("flags a date whose weekday didn't match the letter", () => {
+    expect(
+      digest({ items: [item({ title: "Parents' evening", dateUnsure: true })] }).text,
+    ).toContain("- Ada: Parents' evening (check the date)\n");
   });
 
   it("says so in a quiet week", () => {

@@ -26,6 +26,7 @@ function item(overrides: Partial<ExtractedItem>): ExtractedItem {
     confidence: "high",
     forChildren: [],
     maybeChildren: [],
+    dateUnsure: false,
     ...overrides,
   };
 }

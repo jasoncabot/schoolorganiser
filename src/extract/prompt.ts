@@ -12,7 +12,7 @@ export const EXTRACTION_MODEL = "@cf/mistralai/mistral-small-3.1-24b-instruct";
  * Bump when reading or extraction changes in a way worth re-running on stored mail (prompt,
  * model, PDF layout). Messages read by an older version are re-read on the next processing run.
  */
-export const EXTRACTION_VERSION = 4;
+export const EXTRACTION_VERSION = 5;
 
 export const ITEM_KINDS = [
   "event",
@@ -37,6 +37,8 @@ export interface ExtractedItem {
   school: string | null;
   child: string | null;
   confidence: "high" | "low";
+  /** The letter's weekday doesn't match the date, so the date may be wrong. */
+  dateUnsure: boolean;
   /**
    * Names of the household's children this item applies to, as the model gave them, or null when
    * the household had no children set up (then everything counts as relevant).
@@ -65,6 +67,10 @@ export const EXTRACTION_SCHEMA = {
           day: { type: "integer", minimum: 1, maximum: 31 },
           month: { type: "integer", minimum: 1, maximum: 12 },
           year: { type: ["integer", "null"], description: "Only if the letter states the year" },
+          weekday: {
+            type: ["string", "null"],
+            description: "Day of the week, only if the letter states it for this date",
+          },
           time: { type: ["string", "null"], description: "HH:MM, 24-hour" },
           kind: { type: "string", enum: [...ITEM_KINDS] },
           title: { type: "string" },
@@ -88,6 +94,7 @@ export const EXTRACTION_SCHEMA = {
           "day",
           "month",
           "year",
+          "weekday",
           "time",
           "kind",
           "title",
@@ -120,6 +127,7 @@ Rules:
 - Only include items with a specific day and month. Skip anything undated.
 - Skip regular weekly routines (e.g. "PE is every Tuesday"): they have no single date. Only include a routine if it starts, stops or changes on a specific date, and then only for that date.
 - Dates are UK style (day before month). Give "day" and "month" as numbers. Give "year" only if the letter states it for that date (e.g. "07/09/26" is 2026), otherwise null; never work the year out yourself.
+- "weekday" is the day of the week exactly as the letter gives it next to this date (e.g. "Tue 14th October" gives "Tuesday"), else null. Never work it out yourself.
 - In calendars and tables, a month heading applies to every date listed under it.
 - For a range (e.g. "5th-9th October"), use the first day and say it's a range in the title.
 - "time" is HH:MM in 24-hour time, or null.

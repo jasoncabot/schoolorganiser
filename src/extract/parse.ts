@@ -69,6 +69,15 @@ function unwrap(result: unknown): unknown {
   return candidate ?? null;
 }
 
+const WEEKDAYS = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
+
+/** 0 (Sunday) to 6 from "Tuesday", "Tues" or "tue"; null if it isn't a weekday. */
+export function weekdayNumber(value: unknown): number | null {
+  if (typeof value !== "string") return null;
+  const index = WEEKDAYS.indexOf(value.trim().slice(0, 3).toLowerCase());
+  return index === -1 ? null : index;
+}
+
 function cleanItem(raw: unknown, sentAt: string): ExtractedItem | null {
   if (raw === null || typeof raw !== "object") return null;
   const r = raw as Record<string, unknown>;
@@ -81,6 +90,10 @@ function cleanItem(raw: unknown, sentAt: string): ExtractedItem | null {
       : resolveDate(day, month, year, sentAt);
   const title = text(r.title, 120);
   if (date === null || title === null) return null;
+  // A stated weekday that disagrees with the date means the day, month or year was misread,
+  // or the letter is wrong. Keep the date but say so: moving it could hide a real event.
+  const weekday = weekdayNumber(r.weekday);
+  const dateUnsure = weekday !== null && new Date(`${date}T00:00:00.000Z`).getUTCDay() !== weekday;
   const kind = ITEM_KINDS.includes(r.kind as ItemKind) ? (r.kind as ItemKind) : "other";
   const time =
     typeof r.time === "string" && /^([01]\d|2[0-3]):[0-5]\d$/.test(r.time) ? r.time : null;
@@ -93,7 +106,8 @@ function cleanItem(raw: unknown, sentAt: string): ExtractedItem | null {
     location: text(r.location, 120),
     school: text(r.school, 120),
     child: text(r.child, 80),
-    confidence: r.confidence === "high" ? "high" : "low",
+    confidence: r.confidence === "high" && !dateUnsure ? "high" : "low",
+    dateUnsure,
     forChildren: names(r.for),
     maybeChildren: names(r.maybe),
   };

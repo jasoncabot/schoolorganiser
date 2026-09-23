@@ -13,6 +13,7 @@ import {
   type ExtractedItem,
 } from "./extract/prompt";
 import { digestEmail, nextDigestTime } from "./email/digest";
+import { sendEmail } from "./email/outbound";
 import { migrate } from "./household-schema";
 import { addDays, MAIL_DAYS, purgeTime } from "./retention";
 import { stopLink } from "./web/stop";
@@ -39,6 +40,16 @@ export interface StoredItem extends Omit<ExtractedItem, "forChildren" | "maybeCh
   childIds: string[] | null;
   /** Children it may apply to (e.g. an unknown class name at their school). */
   maybeChildIds: string[];
+  /** The email it was read from, or null once that's deleted (items outlive their emails). */
+  source: { subject: string | null; receivedAt: string } | null;
+}
+
+export interface StoredMessage {
+  id: string;
+  subject: string | null;
+  receivedAt: string;
+  /** Body and attachment text as we read it, or null if it wasn't read. */
+  text: string | null;
 }
 
 /** Attempts at processing one message before it's marked failed. */
@@ -243,16 +254,10 @@ export class Household extends Agent<Env> {
         stopLink: link,
       });
       try {
-        await this.env.EMAIL.send({
-          to: address,
-          from: { email: this.env.SENDER_ADDRESS, name: "School Organiser" },
-          subject: email.subject,
-          text: email.text,
-          html: email.html,
-          headers: {
-            "List-Unsubscribe": `<${link}>`,
-            "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
-          },
+        await sendEmail(this.env, address, email, {
+          "List-Id": `Weekly summary <weekly.${new URL(this.env.APP_ORIGIN).hostname}>`,
+          "List-Unsubscribe": `<${link}>`,
+          "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
         });
         sent++;
       } catch (error) {
@@ -447,8 +452,8 @@ export class Household extends Agent<Env> {
       read.items.forEach((item, index) => {
         const { childIds, maybeChildIds } = relevance(item, read.children);
         this.db.exec(
-          `INSERT INTO items (id, message_id, date, time, kind, title, cost, location, school, child, confidence, expires_at, child_ids, maybe_child_ids)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          `INSERT INTO items (id, message_id, date, time, kind, title, cost, location, school, child, confidence, expires_at, child_ids, maybe_child_ids, date_unsure)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           `${id}-${String(index)}`,
           id,
           item.date,
@@ -463,6 +468,7 @@ export class Household extends Agent<Env> {
           addDays(new Date(`${item.date}T00:00:00.000Z`), MAIL_DAYS).toISOString(),
           childIds === null ? null : JSON.stringify(childIds),
           JSON.stringify(maybeChildIds),
+          item.dateUnsure ? 1 : 0,
         );
       });
       for (const file of read.unreadable) {
@@ -637,7 +643,14 @@ export class Household extends Agent<Env> {
         expires_at: string;
         child_ids: string | null;
         maybe_child_ids: string | null;
-      }>("SELECT * FROM items ORDER BY date, time, id")
+        date_unsure: number;
+        subject: string | null;
+        received_at: string | null;
+      }>(
+        `SELECT i.*, m.subject, m.received_at FROM items i
+         LEFT JOIN messages m ON m.id = i.message_id
+         ORDER BY i.date, i.time, i.id`,
+      )
       .toArray()
       .map((i) => ({
         id: i.id,
@@ -655,7 +668,22 @@ export class Household extends Agent<Env> {
         childIds: i.child_ids === null ? null : (JSON.parse(i.child_ids) as string[]),
         maybeChildIds:
           i.maybe_child_ids === null ? [] : (JSON.parse(i.maybe_child_ids) as string[]),
+        dateUnsure: i.date_unsure === 1,
+        source: i.received_at === null ? null : { subject: i.subject, receivedAt: i.received_at },
       }));
+  }
+
+  /** One stored email, for showing where an item came from; null if it's gone. */
+  message(id: string): StoredMessage | null {
+    const row = this.db
+      .exec<{ subject: string | null; received_at: string; body_text: string | null }>(
+        "SELECT subject, received_at, body_text FROM messages WHERE id = ?",
+        id,
+      )
+      .toArray()[0];
+    return row === undefined
+      ? null
+      : { id, subject: row.subject, receivedAt: row.received_at, text: row.body_text };
   }
 
   unreadable(): (Unreadable & { messageId: string })[] {

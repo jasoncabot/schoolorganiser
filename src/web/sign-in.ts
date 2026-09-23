@@ -1,6 +1,6 @@
 import { addressStub } from "../bindings";
 import type { Deps } from "../deps";
-import { signInEmail } from "../email/outbound";
+import { sendEmail, signInEmail } from "../email/outbound";
 import { signToken, verifyToken } from "../tokens";
 import { html, page } from "./html";
 import { clearSessionCookie, readSession, sameOrigin, sessionCookie } from "./session";
@@ -31,13 +31,7 @@ export async function signIn(request: Request, env: Env, deps: Deps): Promise<Re
     const payload: SignInPayload = { purpose: "sign-in", address, expires: expires.toISOString() };
     const link = `${env.APP_ORIGIN}/sign-in/confirm?token=${encodeURIComponent(await signToken(payload, env.SIGNING_KEY))}`;
     const email = signInEmail({ link, appOrigin: env.APP_ORIGIN });
-    await env.EMAIL.send({
-      to: address,
-      from: { email: env.SENDER_ADDRESS, name: "School Organiser" },
-      subject: email.subject,
-      text: email.text,
-      html: email.html,
-    });
+    await sendEmail(env, address, email);
   }
   // The same answer whether or not we sent anything, so this can't reveal who has an account.
   return page(

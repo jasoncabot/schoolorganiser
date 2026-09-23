@@ -102,6 +102,10 @@ describe("processing", () => {
     });
     expect(await process(household, "process")).toEqual({ processed: 1, retry: false });
 
+    const source = {
+      subject: "Fwd: Year 3 trip to Chester Zoo (household-process)",
+      receivedAt: expect.any(String) as unknown,
+    };
     expect(await household.items()).toEqual([
       {
         id: "m1-1",
@@ -111,6 +115,8 @@ describe("processing", () => {
         expiresAt: "2026-01-08T00:00:00.000Z",
         childIds: null,
         maybeChildIds: [],
+        dateUnsure: false,
+        source,
       },
       {
         id: "m1-0",
@@ -120,6 +126,8 @@ describe("processing", () => {
         expiresAt: "2026-01-14T00:00:00.000Z",
         childIds: null,
         maybeChildIds: [],
+        dateUnsure: false,
+        source,
       },
     ]);
     expect(await household.unreadable()).toEqual([

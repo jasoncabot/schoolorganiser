@@ -174,7 +174,8 @@ export function describeItem(item: StoredItem, names: Map<string, string>): stri
     .filter((d) => d !== null)
     .join(", ");
   const who = audience(item, names);
-  return who === null ? details : `${who}: ${details}`;
+  const line = who === null ? details : `${who}: ${details}`;
+  return item.dateUnsure ? `${line} (check the date)` : line;
 }
 
 function audience(item: StoredItem, names: Map<string, string>): string | null {

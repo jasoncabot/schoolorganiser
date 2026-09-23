@@ -1,6 +1,6 @@
 import { addressStub, householdStub } from "./bindings";
 import type { Deps } from "./deps";
-import { verificationEmail } from "./email/outbound";
+import { verificationEmail, sendEmail } from "./email/outbound";
 import { addDays, MAIL_DAYS, PENDING_DAYS } from "./retention";
 import { signToken, verifyToken } from "./tokens";
 
@@ -26,13 +26,7 @@ export async function sendVerification(
   const token = await signToken(payload, env.SIGNING_KEY);
   const link = `${env.APP_ORIGIN}/verify?token=${encodeURIComponent(token)}`;
   const email = verificationEmail({ link, expires, appOrigin: env.APP_ORIGIN });
-  await env.EMAIL.send({
-    to: address,
-    from: { email: env.SENDER_ADDRESS, name: "School Organiser" },
-    subject: email.subject,
-    text: email.text,
-    html: email.html,
-  });
+  await sendEmail(env, address, email);
   return "sent";
 }
 

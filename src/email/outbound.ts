@@ -21,6 +21,26 @@ export interface OutboundEmail {
   html: string;
 }
 
+/**
+ * Sends one of our emails from the no-reply address. Auto-Submitted (RFC 3834) tells
+ * auto-responders such as out-of-office replies not to answer it.
+ */
+export async function sendEmail(
+  env: Env,
+  to: string,
+  email: OutboundEmail,
+  headers: Record<string, string> = {},
+): Promise<void> {
+  await env.EMAIL.send({
+    to,
+    from: { email: env.SENDER_ADDRESS, name: "School Organiser" },
+    subject: email.subject,
+    text: email.text,
+    html: email.html,
+    headers: { "Auto-Submitted": "auto-generated", ...headers },
+  });
+}
+
 /** An email whose main job is one link: verification, sign-in, invitation. */
 function linkEmail(options: {
   subject: string;

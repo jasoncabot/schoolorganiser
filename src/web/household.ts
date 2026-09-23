@@ -10,10 +10,10 @@ import {
 } from "../children";
 import type { Deps } from "../deps";
 import { childNames, describeItem, relevantItems } from "../email/digest";
-import { invitationEmail } from "../email/outbound";
+import { invitationEmail, sendEmail } from "../email/outbound";
 import { addDays } from "../retention";
 import { signToken } from "../tokens";
-import { dayLabel, londonDate } from "../uk-time";
+import { dayLabel, londonDate, ukDate } from "../uk-time";
 import { html, page, type Html } from "./html";
 import { clearSessionCookie, readSession, sameOrigin, type Session } from "./session";
 import { notAllowed, redirect } from "./sign-in";
@@ -68,6 +68,9 @@ export async function householdRoutes(request: Request, env: Env, deps: Deps): P
     }
     return redirect("/household");
   }
+  const email = /^\/household\/emails\/([\w-]+)$/.exec(path);
+  if (email?.[1] !== undefined && request.method === "GET")
+    return storedEmail(env, session, email[1]);
   if (path === "/household/delete") return deleteData(request, env, session);
   if (path === "/household/leave") return leave(request, env, session);
 
@@ -237,13 +240,7 @@ async function invite(request: Request, env: Env, deps: Deps, session: Session):
     expires,
     appOrigin: env.APP_ORIGIN,
   });
-  await env.EMAIL.send({
-    to: address,
-    from: { email: env.SENDER_ADDRESS, name: "School Organiser" },
-    subject: email.subject,
-    text: email.text,
-    html: email.html,
-  });
+  await sendEmail(env, address, email);
   return overview(
     env,
     deps,
@@ -260,9 +257,21 @@ async function upcoming(env: Env, deps: Deps, session: Session): Promise<Respons
   const [items, children] = await Promise.all([household.items(), household.children()]);
   const today = londonDate(deps.clock.now());
   const names = childNames(children);
-  const days = new Map<string, string[]>();
+  const days = new Map<string, Html[]>();
   for (const item of relevantItems(items).filter((i) => i.date >= today)) {
-    days.set(item.date, [...(days.get(item.date) ?? []), describeItem(item, names)]);
+    const source = item.source;
+    const from =
+      source === null
+        ? html`From an email we no longer keep`
+        : html`From
+            <a href="/household/emails/${item.messageId}"
+              >${source.subject ?? `an email received ${ukDate(new Date(source.receivedAt))}`}</a
+            >`;
+    const line = html`<li>
+      ${describeItem(item, names)}<br />
+      <span class="text-muted">${from}</span>
+    </li>`;
+    days.set(item.date, [...(days.get(item.date) ?? []), line]);
   }
   const hello = `hello@${new URL(env.APP_ORIGIN).hostname}`;
   const body =
@@ -272,7 +281,7 @@ async function upcoming(env: Env, deps: Deps, session: Session): Promise<Respons
           ([date, lines]) =>
             html`<h2>${dayLabel(date)}</h2>
               <ul class="list">
-                ${lines.map((l) => html`<li>${l}</li>`)}
+                ${lines}
               </ul>`,
         );
   return page(
@@ -280,6 +289,28 @@ async function upcoming(env: Env, deps: Deps, session: Session): Promise<Respons
     html`<p><a href="/household">Back</a></p>
       <h1>Coming up</h1>
       ${body}`,
+  );
+}
+
+/** One forwarded email as we read it, so a parent can check an item against its letter. */
+async function storedEmail(env: Env, session: Session, id: string): Promise<Response> {
+  const household = await householdStub(env, session.householdId);
+  const message = await household.message(id);
+  if (message === null) return new Response("Not found", { status: 404 });
+  const title = message.subject ?? "Forwarded email";
+  return page(
+    title,
+    html`<p><a href="/household/upcoming">Back</a></p>
+      <h1>${title}</h1>
+      <p class="text-muted">
+        Received ${ukDate(new Date(message.receivedAt))}. This is the text we read, including
+        attachments.
+      </p>
+      ${
+        message.text === null
+          ? html`<p>We couldn't read this email.</p>`
+          : html`<div class="email-text">${message.text}</div>`
+      }`,
   );
 }
 

@@ -58,6 +58,8 @@ describe("sending the digest", () => {
       expect(email?.text).toContain(`We couldn't read harvest.ppt (in "Fwd: Harvest")`);
       const link = /Stop these emails: (\S+)/.exec(email?.text ?? "")?.[1] ?? "";
       expect(email?.headers).toEqual({
+        "Auto-Submitted": "auto-generated",
+        "List-Id": "Weekly summary <weekly.localhost>",
         "List-Unsubscribe": `<${link}>`,
         "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
       });

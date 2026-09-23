@@ -44,6 +44,37 @@ describe("parseExtraction", () => {
     confidence: "high",
   };
 
+  it("accepts a weekday that matches the date", () => {
+    // 16 Oct 2025 is a Thursday.
+    const [parsed] =
+      parseExtraction(
+        { response: { items: [{ ...item, weekday: "Thurs" }] } },
+        "2025-09-29T15:10:00.000Z",
+      ) ?? [];
+    expect(parsed?.dateUnsure).toBe(false);
+    expect(parsed?.confidence).toBe("high");
+  });
+
+  it("flags a date whose stated weekday doesn't match, and keeps the date", () => {
+    const [parsed] =
+      parseExtraction(
+        { response: { items: [{ ...item, weekday: "Saturday" }] } },
+        "2025-09-29T15:10:00.000Z",
+      ) ?? [];
+    expect(parsed?.date).toBe("2025-10-16");
+    expect(parsed?.dateUnsure).toBe(true);
+    expect(parsed?.confidence).toBe("low");
+  });
+
+  it("ignores a weekday that isn't one", () => {
+    const [parsed] =
+      parseExtraction(
+        { response: { items: [{ ...item, weekday: "TBC" }] } },
+        "2025-09-29T15:10:00.000Z",
+      ) ?? [];
+    expect(parsed?.dateUnsure).toBe(false);
+  });
+
   it("resolves dates relative to when the email was sent", () => {
     expect(parseExtraction({ response: { items: [item] } }, "2025-09-29T15:10:00.000Z")).toEqual([
       {
@@ -56,6 +87,7 @@ describe("parseExtraction", () => {
         school: null,
         child: "Year 3",
         confidence: "high",
+        dateUnsure: false,
         forChildren: [],
         maybeChildren: [],
       },

@@ -65,7 +65,9 @@ describe("coming up", () => {
   it("lists relevant items from today on, by day", async () => {
     const { deps, cookie } = await household("upcoming", ["upcoming@example.com"]);
     const page = await text(await go(request("/household/upcoming", cookie), deps));
-    expect(page).toContain('<h2>Sun 12 Oct</h2> <ul class="list"> <li>Harvest festival</li>');
+    expect(page).toMatch(
+      /<h2>Sun 12 Oct<\/h2> <ul class="list"> <li> Harvest festival<br \/> <span class="text-muted">From <a href="\/household\/emails\/m1" ?>Fwd: Trip<\/a ?><\/span>/,
+    );
     expect(page).toContain("<h2>Fri 5 Dec</h2>");
     expect(page).not.toContain("Already happened");
   });
@@ -75,6 +77,24 @@ describe("coming up", () => {
     expect(await text(await go(request("/household", cookie), deps))).toContain(
       '<a href="/household/upcoming">',
     );
+  });
+});
+
+describe("source emails", () => {
+  it("shows the text we read from an email, and 404 for an unknown one", async () => {
+    const { deps, cookie, stub } = await household("source", ["source@example.com"]);
+    await runInDurableObject(stub, (_instance: Household, state) => {
+      state.storage.sql.exec(
+        "UPDATE messages SET body_text = 'Parents evening is on Tuesday 14th October.' WHERE id = 'm1'",
+      );
+    });
+    const page = await text(await go(request("/household/emails/m1", cookie), deps));
+    expect(page).toContain("<h1>Fwd: Trip</h1>");
+    expect(page).toContain("Parents evening is on Tuesday 14th October.");
+
+    const other = await household("source-other", ["source-other@example.com"]);
+    const missing = await go(request("/household/emails/nope", other.cookie), other.deps);
+    expect(missing.status).toBe(404);
   });
 });
 
