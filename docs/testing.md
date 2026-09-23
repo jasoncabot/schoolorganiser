@@ -29,7 +29,11 @@ The suite runs in parallel, offline, and gives the same result every time.
 
 - Runs a fresh `wrangler dev` with empty state each time, so tests use fixed addresses.
 - Inbound mail is posted to `/cdn-cgi/local/email` with an `ARC-Authentication-Results` header, as Email Routing would add.
-- `GET /__test/outbox?to=` reads the email stub. It exists only when `E2E_TEST_ROUTES` is `"1"` (test config only).
+- Test-only routes, present only when `E2E_TEST_ROUTES` is `"1"` (test config only):
+  - `GET /__test/outbox?to=` reads the email stub.
+  - `POST /__test/ai` registers the AI stub's answer to one exact request (`extractionRequest()` builds it).
+  - `POST /__test/week?address=&now=` runs the Sunday schedule (read waiting mail, send the digest) for that address's household as if at `now`.
+- `journey.spec.ts` covers forward, confirm, Sunday, digest, web page and stop link. It uses dates in 2099 so the digest's year-long links stay valid; email arrival still uses the real clock.
 - `baseURL` is `http://localhost:8787` to match `APP_ORIGIN`; form posts are checked against it.
 
 ## Choosing the model

@@ -21,6 +21,11 @@ export interface Deps {
   ids: Ids;
 }
 
+/** Real ids and randomness with a fixed clock, for running scheduled work "as if" at a time. */
+export function atTime(now: string): Deps {
+  return { ...systemDeps, clock: { now: () => new Date(now) } };
+}
+
 export const systemDeps: Deps = {
   clock: { now: () => new Date() },
   random: { bytes: (length) => crypto.getRandomValues(new Uint8Array(length)) },

@@ -1,6 +1,6 @@
 import { Agent } from "agents";
 import { currentYearGroup, yearGroupLabel, type Child, type ChildInput } from "./children";
-import { systemDeps, type Deps } from "./deps";
+import { atTime, systemDeps, type Deps } from "./deps";
 import { runModel } from "./extract/ai";
 import { readMessage, type AttachmentOutcome, type Unreadable } from "./extract/message";
 import { parseExtraction, parseNotes } from "./extract/parse";
@@ -243,13 +243,30 @@ export class Household extends Agent<Env> {
     await this.schedule(new Date(dueMs), "purgeScheduled");
   }
 
-  /** Scheduled callback: sends this week's digest by the real clock, then arms next week's. */
+  /**
+   * Scheduled callback: sends this week's digest by the real clock, then arms next week's. Mail
+   * still waiting, or read by an older version, is read first so the digest is current.
+   */
   async digestScheduled(_payload: unknown, running?: { id: string }): Promise<void> {
     try {
-      await this.sendDigest(systemDeps);
+      await this.weekly(systemDeps);
     } finally {
       await this.armDigest(running?.id);
     }
+  }
+
+  /**
+   * What the Sunday schedule does, as if at `now`. The end-to-end tests call it, because they
+   * can't wait for Sunday and scheduled work is off there.
+   */
+  async weeklyAt(now: string): Promise<{ processed: number; sent: number }> {
+    return this.weekly(atTime(now));
+  }
+
+  private async weekly(deps: Deps): Promise<{ processed: number; sent: number }> {
+    const { processed } = await this.processPending(deps);
+    const { sent } = await this.sendDigest(deps);
+    return { processed, sent };
   }
 
   /**

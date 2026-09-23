@@ -33,7 +33,7 @@ Messages record the extraction and children versions they were read with, so eit
 
 ## Digest
 
-`Household.digestScheduled()` runs at 6pm UK time each Sunday (`nextDigestTime()` in `src/email/digest.ts`), calls `sendDigest()` and schedules the next one. `digestEmail()` builds the email from stored items without side effects. Each member's copy has its own stop link (`src/web/stop.ts`, a signed token valid for a year).
+`Household.digestScheduled()` runs at 6pm UK time each Sunday (`nextDigestTime()` in `src/email/digest.ts`), reads any mail still waiting or read by an older version, calls `sendDigest()` and schedules the next one. `digestEmail()` builds the email from stored items without side effects. Each member's copy has its own stop link (`src/web/stop.ts`, a signed token valid for a year).
 
 ## Retention
 

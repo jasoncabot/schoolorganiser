@@ -1,3 +1,4 @@
+import { addressStub, householdStub } from "../bindings";
 import type { Deps } from "../deps";
 import { confirmVerification, readVerificationToken } from "../verification";
 import { renderSource } from "../extract/render";
@@ -22,6 +23,8 @@ export async function handleRequest(request: Request, env: Env, deps: Deps): Pro
   if (url.pathname === "/stop") return stop(request, env, deps);
   if (url.pathname === "/render-source") return renderSource(request, env, deps);
   if (url.pathname === "/__test/outbox") return testOutbox(url, env);
+  if (url.pathname === "/__test/ai") return testAi(request, env);
+  if (url.pathname === "/__test/week") return testWeek(url, env);
   return env.ASSETS.fetch(request);
 }
 
@@ -30,12 +33,42 @@ export async function handleRequest(request: Request, env: Env, deps: Deps): Pro
  * E2E_TEST_ROUTES is set, which only test/wrangler.test.jsonc does. Production has no such var.
  */
 async function testOutbox(url: URL, env: Env): Promise<Response> {
-  const flags = env as unknown as { E2E_TEST_ROUTES?: string };
   const to = url.searchParams.get("to");
-  if (flags.E2E_TEST_ROUTES !== "1" || to === null)
-    return new Response("Not found", { status: 404 });
+  if (!testRoutesOn(env) || to === null) return new Response("Not found", { status: 404 });
   const stub = env.EMAIL as unknown as { sentTo(address: string): Promise<unknown> };
   return Response.json(await stub.sentTo(to));
+}
+
+function testRoutesOn(env: Env): boolean {
+  return (env as unknown as { E2E_TEST_ROUTES?: string }).E2E_TEST_ROUTES === "1";
+}
+
+/** Test-only: makes the AI stub answer one exact request, like registerAiRun() in unit tests. */
+async function testAi(request: Request, env: Env): Promise<Response> {
+  if (!testRoutesOn(env) || request.method !== "POST")
+    return new Response("Not found", { status: 404 });
+  const { model, inputs, output } = await request.json<{
+    model: string;
+    inputs: Record<string, unknown>;
+    output: unknown;
+  }>();
+  const stub = env.AI as unknown as {
+    registerRun(model: string, inputs: Record<string, unknown>, output: unknown): Promise<void>;
+  };
+  await stub.registerRun(model, inputs, output);
+  return new Response(null, { status: 204 });
+}
+
+/** Test-only: runs the Sunday schedule for an address's household as if at `now`. */
+async function testWeek(url: URL, env: Env): Promise<Response> {
+  const address = url.searchParams.get("address");
+  const now = url.searchParams.get("now");
+  if (!testRoutesOn(env) || address === null || now === null)
+    return new Response("Not found", { status: 404 });
+  const state = await addressStub(env, address).lookup();
+  if (state.status !== "verified") return new Response("Not verified", { status: 409 });
+  const household = await householdStub(env, state.householdId);
+  return Response.json(await household.weeklyAt(now));
 }
 
 /**
