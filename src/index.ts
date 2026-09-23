@@ -1,3 +1,4 @@
+import { systemDeps } from "./deps";
 import { handleInbound } from "./email/inbound";
 
 export { Address } from "./address";
@@ -10,6 +11,6 @@ export default {
   },
 
   async email(message, env): Promise<void> {
-    await handleInbound(message, env);
+    await handleInbound(message, env, systemDeps);
   },
 } satisfies ExportedHandler<Env>;

@@ -24,8 +24,17 @@ To rotate a secret: `wrangler secret put SIGNING_KEY`. Rotating `SIGNING_KEY` in
 
 ## To do
 
-1. **Enable Email Routing on `school.jasoncabot.com`:** `POST /zones/{zone}/email/routing/dns {"name":"school.jasoncabot.com"}`. This needs the token permission Zone → Zone Settings → Edit. It adds MX and SPF records on the subdomain only; the apex (iCloud mail) is untouched.
-2. **Workers Builds:** connect the GitHub repo to the `schoolorganiser` Worker (dashboard only). Production branch `main`, build command `npm run check:ci && npm run build`, deploy command `npx wrangler deploy`. Builds must use npm 11, which is set in `packageManager`.
+1. **Workers Builds** (dashboard only, because it needs GitHub authorisation):
+   1. Workers & Pages → `schoolorganiser` → Settings → Builds → **Connect**.
+   2. Git account: authorise the Cloudflare GitHub app for `jasoncabot` (it can be limited to the `schoolorganiser` repository only).
+   3. Repository `jasoncabot/schoolorganiser`, branch `main`.
+   4. Build command: `npm run check:ci && npm run build`.
+   5. Deploy command: `npx wrangler deploy` (the default).
+   6. Root directory: leave empty. API token: leave as the auto-generated one. Build variables: none.
+   7. Non-production branch builds: turn off (we work on `main` until v1).
+   8. Save. The next push to `main` triggers a build; check it goes green under Deployments.
+
+   The build image installs dependencies with npm 10 (`npm clean-install`), which works with our lockfile. Adding packages needs npm 11 locally. `.node-version` pins Node 22.
 
 ## Token permissions
 
