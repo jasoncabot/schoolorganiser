@@ -4,6 +4,17 @@ import { ukDate } from "../uk-time";
 // Emails we send. Plain and brief (see CLAUDE.md), styled per docs/design.md, always with a
 // plain-text part. We send from a no-reply address; replies are dropped.
 
+/** The web page's colours (src/styles/app.css), inlined because email clients drop stylesheets. */
+export const COLOURS = {
+  page: "#fdf9f2",
+  ink: "#221a20",
+  muted: "#5e5559",
+  rule: "#cfc6bd",
+  brand: "#4a2545",
+  accent: "#d9a441",
+  link: "#7a2e70",
+};
+
 export interface OutboundEmail {
   subject: string;
   text: string;
@@ -44,9 +55,9 @@ function linkEmail(options: {
     `<p style="margin:0 0 ${String(margin)}px">${escape(p)}</p>`;
   const html = [
     ...options.before.map((p, i) => paragraph(p, i === options.before.length - 1 ? 24 : 16)),
-    `<p style="margin:0 0 24px"><a href="${escape(options.link)}" style="display:inline-block;background:#00703c;color:#ffffff;font-weight:bold;text-decoration:none;padding:10px 16px;box-shadow:0 2px 0 #002d18">${escape(options.button)}</a></p>`,
+    `<p style="margin:0 0 24px"><a href="${escape(options.link)}" style="display:inline-block;background:${COLOURS.brand};color:${COLOURS.page};font-weight:bold;text-decoration:none;padding:10px 16px;border-radius:6px">${escape(options.button)}</a></p>`,
     ...options.after.map((p) => paragraph(p)),
-    `<p style="margin:0 0 16px;color:#505a5f">${escape(options.note)}</p>`,
+    `<p style="margin:0 0 16px;color:${COLOURS.muted}">${escape(options.note)}</p>`,
   ].join("\n");
   return {
     subject: options.subject,
@@ -106,15 +117,15 @@ export function layout(
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <style>@font-face{font-family:"Inter Tight";font-weight:100 900;src:url("${escape(appOrigin)}/assets/fonts/inter-tight.woff2") format("woff2")}</style>
 </head>
-<body style="margin:0;padding:0;background:#ffffff;color:#0b0c0c;font-family:Arial,Helvetica,sans-serif;font-size:16px;line-height:1.5">
-<div style="background:#0b0c0c;border-bottom:8px solid #1d70b8;padding:12px 16px">
-<span style="font-family:${escape(font)};font-weight:bold;font-size:20px;color:#ffffff">School Organiser</span>
+<body style="margin:0;padding:0;background:${COLOURS.page};color:${COLOURS.ink};font-family:Arial,Helvetica,sans-serif;font-size:16px;line-height:1.5">
+<div style="background:${COLOURS.brand};border-bottom:4px solid ${COLOURS.accent};padding:12px 16px">
+<span style="font-family:${escape(font)};font-weight:bold;font-size:20px;color:${COLOURS.page}">School Organiser</span>
 </div>
 <div style="max-width:560px;padding:24px 16px">
 <h1 style="font-family:${escape(font)};font-weight:bold;font-size:28px;line-height:1.2;margin:0 0 16px">${escape(heading)}</h1>
 ${body}
-<hr style="border:0;border-top:1px solid #b1b4b6;margin:24px 0 12px">
-<p style="margin:0;font-size:14px;color:#505a5f">Forward school emails to ${escape(hello)} · <a href="${escape(appOrigin)}/privacy" style="color:#1d70b8">Privacy</a>${stopLink === undefined ? "" : ` · <a href="${escape(stopLink)}" style="color:#1d70b8">Stop these emails</a>`}</p>
+<hr style="border:0;border-top:1px solid ${COLOURS.rule};margin:24px 0 12px">
+<p style="margin:0;font-size:14px;color:${COLOURS.muted}">Forward school emails to ${escape(hello)} · <a href="${escape(appOrigin)}/privacy" style="color:${COLOURS.link}">Privacy</a>${stopLink === undefined ? "" : ` · <a href="${escape(stopLink)}" style="color:${COLOURS.link}">Stop these emails</a>`}</p>
 </div>
 </body>
 </html>`;

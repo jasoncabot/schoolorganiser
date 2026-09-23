@@ -222,6 +222,12 @@ export class Household extends Agent<Env> {
          WHERE u.mentioned_at IS NULL ORDER BY m.received_at, u.filename`,
       )
       .toArray();
+    const failed = this.db
+      .exec<{ id: string; received_at: string }>(
+        `SELECT id, received_at FROM messages
+         WHERE status = 'failed' AND failure_mentioned_at IS NULL ORDER BY received_at, id`,
+      )
+      .toArray();
     const items = this.items();
     const children = this.children();
     let sent = 0;
@@ -232,6 +238,7 @@ export class Household extends Agent<Env> {
         items,
         children,
         unreadable,
+        failed: failed.map((m) => ({ receivedAt: m.received_at })),
         appOrigin: this.env.APP_ORIGIN,
         stopLink: link,
       });
@@ -256,6 +263,13 @@ export class Household extends Agent<Env> {
       for (const { id } of unreadable) {
         this.db.exec(
           "UPDATE unreadable SET mentioned_at = ? WHERE rowid = ?",
+          now.toISOString(),
+          id,
+        );
+      }
+      for (const { id } of failed) {
+        this.db.exec(
+          "UPDATE messages SET failure_mentioned_at = ? WHERE id = ?",
           now.toISOString(),
           id,
         );

@@ -27,6 +27,10 @@ async function household(name: string, members: string[]) {
        VALUES ('m1-0', 'm1', '2025-10-13', '09:15', 'event', 'Harvest festival', 'high', '2026-01-11T00:00:00.000Z', NULL, '[]')`,
     );
     sql.exec(
+      `INSERT INTO messages (id, r2_key, received_at, expires_at, status)
+       VALUES ('m2', 'mail/x/m2.eml', '2025-10-09T08:00:00.000Z', '2026-01-07T08:00:00.000Z', 'failed')`,
+    );
+    sql.exec(
       "INSERT INTO unreadable (message_id, filename, reason) VALUES ('m1', 'harvest.ppt', 'unsupported')",
     );
   });
@@ -60,7 +64,7 @@ describe("sending the digest", () => {
     }
   });
 
-  it("sends once a week and mentions an unreadable file once", async () => {
+  it("sends once a week and mentions each failure once", async () => {
     const address = "digest-once@example.com";
     const stub = await household("once", [address]);
     expect(await send(stub, SUNDAY, "once")).toEqual({ sent: 1 });
@@ -70,7 +74,9 @@ describe("sending the digest", () => {
     const emails = await sentTo(address);
     expect(emails).toHaveLength(2);
     expect(emails[1]?.text).toContain("Nothing on this week.");
+    expect(emails[0]?.text).toContain("We couldn't read an email forwarded on Thu 9 Oct.");
     expect(emails[1]?.text).not.toContain("harvest.ppt");
+    expect(emails[1]?.text).not.toContain("forwarded on");
   });
 
   it("stops for a member who uses the one-click link, and only for them", async () => {

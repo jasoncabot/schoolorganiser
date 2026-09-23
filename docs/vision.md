@@ -13,7 +13,7 @@ The owner first (two children at two schools), then other UK school parents.
    - the week ahead, grouped by day, with the child's name on each line (dates, costs, locations, early starts and kit)
    - a short "Coming up" section for deadlines and payments in the next ~3 weeks
    - a single line, "Nothing on this week.", if there's nothing
-   - a single note for any attachment we couldn't read (e.g. an old `.ppt`), so nothing is missed without you knowing
+   - a single note for any attachment or email we couldn't read (e.g. an old `.ppt`), so nothing is missed without you knowing
    - a one-click stop link
 5. A **minimal web page** (magic-link sign-in) lets a parent:
    - add their children: display name, school, year group and (optionally) class, so the AI can tell which items apply to which child

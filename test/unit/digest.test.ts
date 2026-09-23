@@ -98,6 +98,7 @@ function digest(overrides: Partial<DigestInput>) {
     items: [],
     children: [ada, bo],
     unreadable: [],
+    failed: [],
     appOrigin: "https://school.example.com",
     stopLink: "https://school.example.com/stop?token=t",
     ...overrides,
@@ -207,6 +208,23 @@ describe("digestEmail", () => {
     expect(lines).toContain("Plus 2 more.");
     expect(lines).toContain("Coming up");
     expect(lines).toContain("Plus 1 more.");
+  });
+
+  it("mentions emails it couldn't read", () => {
+    expect(digest({ failed: [{ receivedAt: "2025-10-08T08:00:00.000Z" }] }).text).toContain(
+      "We couldn't read an email forwarded on Wed 8 Oct. Try forwarding it again.",
+    );
+    const two = digest({
+      failed: [
+        { receivedAt: "2025-10-08T08:00:00.000Z" },
+        { receivedAt: "2025-10-08T09:00:00.000Z" },
+        { receivedAt: "2025-10-09T23:30:00.000Z" },
+      ],
+    });
+    // 23:30 UTC on 9 Oct is 00:30 on Fri 10 Oct in the UK.
+    expect(two.text).toContain(
+      "We couldn't read 3 emails forwarded on Wed 8 Oct and Fri 10 Oct. Try forwarding them again.",
+    );
   });
 
   it("mentions attachments it couldn't read", () => {

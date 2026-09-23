@@ -49,13 +49,9 @@ export function page(title: string, body: Html, status = 200): Response {
       </head>
       <body>
         <a href="#main" class="sr-only focus:not-sr-only">Skip to main content</a>
-        <header class="border-b-8 border-link bg-brand text-white">
+        <header class="site-header">
           <div class="page py-3">
-            <a
-              href="/"
-              class="font-display text-xl font-bold text-white no-underline visited:text-white"
-              >School Organiser</a
-            >
+            <a href="/" class="font-display text-xl font-bold no-underline">School Organiser</a>
           </div>
         </header>
         <main id="main" class="page py-10">${body}</main>

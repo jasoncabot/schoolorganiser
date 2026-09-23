@@ -1,6 +1,6 @@
 @import "tailwindcss";
 
-/* Headings: Inter Tight, self-hosted from /assets/fonts (copied by scripts/copy-fonts.mjs). */
+/* Headings: Inter Tight, self-hosted from /assets/fonts (copied by scripts/copy-assets.mjs). */
 @font-face {
   font-family: "Inter Tight";
   font-style: normal;
@@ -9,22 +9,25 @@
   src: url("/assets/fonts/inter-tight.woff2") format("woff2");
 }
 
-/* Design tokens: see docs/design.md. Plain, high contrast, WCAG 2.2 AA. */
+/* Design tokens: see docs/design.md. Plum and cream, WCAG 2.2 AA. */
 @theme {
   --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
   --font-display: "Inter Tight", system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
 
-  --color-ink: #0b0c0c;
-  --color-muted: #505a5f;
-  --color-rule: #b1b4b6;
-  --color-panel: #f3f2f1;
-  --color-link: #1d70b8;
-  --color-link-visited: #4c2c92;
-  --color-link-hover: #003078;
-  --color-focus: #ffdd00;
-  --color-error: #d4351c;
-  --color-success: #00703c;
-  --color-brand: #0b0c0c;
+  --color-page: #fdf9f2;
+  --color-ink: #221a20;
+  --color-muted: #5e5559;
+  --color-rule: #cfc6bd;
+  --color-panel: #f3ebe0;
+  --color-brand: #4a2545;
+  --color-brand-dark: #3a1c36;
+  --color-accent: #d9a441;
+  --color-link: #7a2e70;
+  --color-link-visited: #4a2545;
+  --color-link-hover: #4a2545;
+  --color-focus: #d9a441;
+  --color-error: #b3261e;
+  --color-success: #2e6b3a;
 
   --text-body: 1.1875rem; /* 19px */
   --text-body--line-height: 1.5;
@@ -32,7 +35,7 @@
 
 @layer base {
   html {
-    @apply bg-white font-sans text-ink;
+    @apply bg-page font-sans text-ink;
   }
   body {
     @apply text-base md:text-body;
@@ -41,8 +44,10 @@
     @apply text-link underline underline-offset-2 hover:text-link-hover hover:decoration-2 visited:text-link-visited;
   }
   :focus-visible {
-    @apply bg-focus text-ink outline-3 outline-offset-0 outline-focus;
-    box-shadow: 0 4px var(--color-ink);
+    @apply rounded-sm outline-3 outline-offset-2 outline-brand;
+  }
+  a:focus-visible {
+    @apply bg-focus text-ink no-underline;
   }
   h1,
   h2,
@@ -61,12 +66,17 @@
 }
 
 @layer components {
+  .site-header {
+    @apply border-b-4 border-accent bg-brand text-page;
+    & a {
+      @apply text-page visited:text-page hover:text-page;
+    }
+  }
   .page {
     @apply mx-auto max-w-4xl px-4 md:px-8;
   }
   .button {
-    @apply inline-block cursor-pointer bg-success px-4 py-2 font-semibold text-white no-underline;
-    box-shadow: 0 2px #002d18;
+    @apply inline-block cursor-pointer rounded-md bg-brand px-4 py-2 font-semibold text-page no-underline hover:bg-brand-dark visited:text-page;
   }
   /* Long-form pages rendered from Markdown, e.g. the privacy notice. */
   .prose-plain {
@@ -97,8 +107,7 @@
     }
   }
   .button-secondary {
-    @apply inline-block cursor-pointer bg-panel px-4 py-2 font-semibold text-ink no-underline;
-    box-shadow: 0 2px var(--color-muted);
+    @apply inline-block cursor-pointer rounded-md border-2 border-brand bg-page px-4 py-1.5 font-semibold text-brand no-underline hover:bg-panel visited:text-brand;
   }
   .label {
     @apply mb-1 block font-bold;
@@ -108,15 +117,14 @@
   }
   .input,
   .select {
-    @apply mb-6 block w-full max-w-md border-2 border-ink bg-white px-2 py-1.5;
+    @apply mb-6 block w-full max-w-md rounded-md border-2 border-ink bg-white px-2 py-1.5;
   }
   .input:focus,
   .select:focus {
-    @apply outline-3 outline-offset-0 outline-focus;
-    box-shadow: inset 0 0 0 2px var(--color-ink);
+    @apply border-brand outline-3 outline-offset-2 outline-brand;
   }
   .error-summary {
-    @apply mb-8 border-4 border-error p-4 font-bold;
+    @apply mb-8 rounded-md border-4 border-error p-4 font-bold;
   }
   .error-summary p {
     @apply mb-0;
@@ -125,7 +133,7 @@
     @apply mb-2 font-bold text-error;
   }
   .notice {
-    @apply mb-8 border-l-8 border-success bg-panel p-4;
+    @apply mb-8 rounded-r-md border-l-8 border-success bg-panel p-4;
   }
   .notice p {
     @apply mb-0;

@@ -1,8 +1,16 @@
 import type { Child } from "../children";
 import type { StoredItem } from "../household";
-import { addDaysToDate, dayLabel, londonDate, londonTime, ukTime, weekday } from "../uk-time";
+import {
+  addDaysToDate,
+  dayLabel,
+  londonDate,
+  londonTime,
+  ukDate,
+  ukTime,
+  weekday,
+} from "../uk-time";
 import { escape } from "../web/html";
-import { layout, type OutboundEmail } from "./outbound";
+import { COLOURS, layout, type OutboundEmail } from "./outbound";
 
 /** Sunday at this hour, UK time. */
 export const DIGEST_HOUR = 18;
@@ -25,6 +33,8 @@ export interface DigestInput {
   children: Child[];
   /** Attachments we couldn't read and haven't mentioned yet. */
   unreadable: { filename: string; subject: string | null }[];
+  /** Forwarded emails we gave up on and haven't mentioned yet. */
+  failed: { receivedAt: string }[];
   appOrigin: string;
   stopLink: string;
 }
@@ -68,6 +78,8 @@ export function digestEmail(input: DigestInput): OutboundEmail {
       ? null
       : `We couldn't read ${input.unreadable.map(fileLabel).join(", ")}. Check the original ${input.unreadable.length === 1 ? "email" : "emails"}.`;
 
+  const failed = failedNote(input.failed);
+
   const text: string[] = [heading, ""];
   const html: string[] = [];
   if (week.length === 0) {
@@ -94,9 +106,13 @@ export function digestEmail(input: DigestInput): OutboundEmail {
     }
     text.push("");
   }
+  if (failed !== null) {
+    text.push(failed, "");
+    html.push(paragraph(failed, COLOURS.muted));
+  }
   if (unreadable !== null) {
     text.push(unreadable, "");
-    html.push(paragraph(unreadable, "#505a5f"));
+    html.push(paragraph(unreadable, COLOURS.muted));
   }
   text.push(
     "--",
@@ -165,6 +181,14 @@ function joinNames(names: string[], conjunction = "and"): string {
   return `${names.slice(0, -1).join(", ")} ${conjunction} ${names.at(-1) ?? ""}`;
 }
 
+/** "We couldn't read an email forwarded on Wed 8 Oct. Try forwarding it again." */
+function failedNote(failed: { receivedAt: string }[]): string | null {
+  if (failed.length === 0) return null;
+  const days = [...new Set(failed.map((f) => ukDate(new Date(f.receivedAt))))];
+  const one = failed.length === 1;
+  return `We couldn't read ${one ? "an email" : `${String(failed.length)} emails`} forwarded on ${joinNames(days)}. Try forwarding ${one ? "it" : "them"} again.`;
+}
+
 function fileLabel(file: { filename: string; subject: string | null }): string {
   return file.subject === null ? file.filename : `${file.filename} (in "${file.subject}")`;
 }
@@ -184,6 +208,6 @@ function list(lines: Line[]): string {
   return `<ul style="margin:0 0 16px;padding-left:20px">${items}</ul>`;
 }
 
-function paragraph(text: string, colour = "#0b0c0c"): string {
+function paragraph(text: string, colour = COLOURS.ink): string {
   return `<p style="margin:0 0 16px;color:${colour}">${escape(text)}</p>`;
 }

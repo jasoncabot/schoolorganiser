@@ -47,7 +47,7 @@ Settled with the owner. Don't reopen without asking. Replace a decision when it 
 - A "Coming up" section for deadlines and payments in the two weeks after that.
 - Items for "maybe" children read "Oak class (may be Ada's)". Repeats (same date, time, title and children) are shown once.
 - A quiet week sends "Nothing on this week."
-- Each unreadable attachment is mentioned in one digest only.
+- Each unreadable attachment, and each forwarded email we gave up on after 3 attempts, is mentioned in one digest only.
 - Sent from a no-reply address; replies are dropped. Every digest has a stop link and one-click `List-Unsubscribe` headers (RFC 8058). Stopping stops digests to that address only; the household and its data stay.
 
 ## Privacy and retention
@@ -58,7 +58,7 @@ Settled with the owner. Don't reopen without asking. Replace a decision when it 
 
 ## Web and email design
 
-- Tailwind CSS v4, plain and accessible in the spirit of GOV.UK without its branding. Headings in Inter Tight, self-hosted. See `design.md`.
+- Tailwind CSS v4, plain and accessible, in plum and cream so it can't be mistaken for GOV.UK or any official service. Headings in Inter Tight, self-hosted. See `design.md`.
 
 ## After v1
 

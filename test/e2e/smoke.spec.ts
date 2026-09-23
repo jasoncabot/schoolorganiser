@@ -12,7 +12,7 @@ test("home page explains how to start", async ({ page }) => {
 test("home page is styled", async ({ page }) => {
   await page.goto("/");
   const header = page.getByRole("banner");
-  await expect(header).toHaveCSS("background-color", "rgb(11, 12, 12)");
+  await expect(header).toHaveCSS("background-color", "rgb(74, 37, 69)");
 });
 
 test("skip link is the first thing keyboard users reach", async ({ page }) => {
