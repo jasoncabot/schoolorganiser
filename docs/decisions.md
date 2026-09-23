@@ -17,3 +17,12 @@ Settled with the owner. Add new ones at the bottom with a date.
 | 2026-09-23 | Stack: TypeScript, Agents SDK, Workers AI `toMarkdown` for attachments, Vitest with the Workers pool. |
 | 2026-09-23 | Deploys go through Workers Builds (Cloudflare's Git-connected CI). No deploy token is stored in GitHub. |
 | 2026-09-23 | Cloudflare agent skills (`cloudflare/skills`) are enabled at project level. |
+| 2026-09-23 | v1 supports manual forwards only. Design the sender lookup so automatic forwarding (Gmail/Outlook filters, including relaying their confirmation email) can be added straight after. |
+| 2026-09-23 | Email → household lookup is a small Durable Object per normalised address (household ID + verification state). |
+| 2026-09-23 | Stopping digests: a one-click stop link in every digest (with `List-Unsubscribe` and `List-Unsubscribe-Post` headers) plus a web page setting. Stopping pauses the digest and keeps the data. Deleting data is a separate action. |
+| 2026-09-23 | The owner writes the privacy notice. Agents provide a placeholder page and a checklist only. It must be in place before any other parent uses the service. |
+| 2026-09-23 | Digest is readable in about 30 seconds: grouped by day, the child's name on each line, at most ~15 lines, with a "plus N more" link to the web page. |
+| 2026-09-23 | Digest includes a short "Coming up" section for deadlines and payments due within ~3 weeks. |
+| 2026-09-23 | A quiet week still sends one line: "Nothing on this week." |
+| 2026-09-23 | Model choice: the cheapest Workers AI model that extracts correctly. Only move up if it misses things. Record the model in use here. |
+| 2026-09-23 | We send from a no-reply address. Replies are dropped and logged. The footer points to the forwarding address and the settings page. |

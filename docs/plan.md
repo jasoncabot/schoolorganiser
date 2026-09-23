@@ -8,5 +8,7 @@ Each step ships behind tests and deploys via Workers Builds.
 4. **Verification:** signed link, holding pending mail, promoting it on verify.
 5. **Processing:** MIME parsing, `toMarkdown` for attachments, AI extraction into `items`.
 6. **Digest:** Sunday schedule, a short email built from next week's items, sent to all members.
-7. **Web page:** magic-link sign-in; children and schools; household members; upcoming items; delete data.
+7. **Web page:** magic-link sign-in; children and schools; household members; upcoming items; pause digest; delete data; placeholder privacy page.
 8. **Owner trial:** the owner forwards real mail from both schools for a few weeks, then we tune the extraction and the digest copy.
+9. **Automatic forwarding:** support mail-client forwarding rules and relay their confirmation emails.
+10. **Before other parents join:** the owner's privacy notice is live.

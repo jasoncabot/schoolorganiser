@@ -11,7 +11,7 @@ School Organiser: parents forward school emails to one address. Each week they g
 - `docs/decisions.md`: settled decisions. Don't reopen them without asking.
 - `docs/architecture.md`: how it fits together
 - `docs/plan.md`: build order
-- `docs/open-questions.md`: things still to decide with the owner
+- `docs/open-questions.md`: things still to decide with the owner, plus the privacy checklist
 
 ## Rules
 
