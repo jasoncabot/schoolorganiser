@@ -131,3 +131,24 @@ ${body}
 </body>
 </html>`;
 }
+
+export function invitationEmail(options: {
+  link: string;
+  invitedBy: string;
+  expires: Date;
+  appOrigin: string;
+}): OutboundEmail {
+  return linkEmail({
+    subject: "You're invited to School Organiser",
+    heading: "Join a household",
+    before: [
+      `${options.invitedBy} has invited you to get their household's weekly school summary: a short email every Sunday evening about the week ahead.`,
+      "Join to start getting it.",
+    ],
+    button: "Join",
+    link: options.link,
+    after: [`This link works until ${ukDate(options.expires)}.`],
+    note: "If you weren't expecting this, ignore this email and we won't contact you again.",
+    appOrigin: options.appOrigin,
+  });
+}

@@ -1,4 +1,5 @@
 import { Agent } from "agents";
+import type { Child, ChildInput } from "./children";
 import { systemDeps, type Deps } from "./deps";
 import { runModel } from "./extract/ai";
 import { readMessage, type Unreadable } from "./extract/message";
@@ -197,6 +198,84 @@ export class Household extends Agent<Env> {
     });
   }
 
+  /** Children, oldest entry first. */
+  children(): Child[] {
+    return this.db
+      .exec<{
+        id: string;
+        name: string;
+        school: string;
+        year_group: number;
+        year_group_as_of: number;
+        class_name: string | null;
+      }>(
+        "SELECT id, name, school, year_group, year_group_as_of, class_name FROM children ORDER BY created_at, id",
+      )
+      .toArray()
+      .map((c) => ({
+        id: c.id,
+        name: c.name,
+        school: c.school,
+        yearGroup: c.year_group,
+        yearGroupAsOf: c.year_group_as_of,
+        className: c.class_name,
+      }));
+  }
+
+  /** Adds a child. `schoolYear` is the school year the year group applies to (see children.ts). */
+  addChild(id: string, input: ChildInput, schoolYear: number, now: string): void {
+    this.db.exec(
+      `INSERT INTO children (id, name, school, year_group, year_group_as_of, class_name, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      id,
+      input.name,
+      input.school,
+      input.yearGroup,
+      schoolYear,
+      input.className,
+      now,
+    );
+    this.childrenChanged();
+  }
+
+  /** Replaces a child's details. Returns false if there's no such child. */
+  updateChild(id: string, input: ChildInput, schoolYear: number): boolean {
+    const changed = this.db.exec(
+      `UPDATE children SET name = ?, school = ?, year_group = ?, year_group_as_of = ?, class_name = ?
+       WHERE id = ?`,
+      input.name,
+      input.school,
+      input.yearGroup,
+      schoolYear,
+      input.className,
+      id,
+    ).rowsWritten;
+    if (changed > 0) this.childrenChanged();
+    return changed > 0;
+  }
+
+  removeChild(id: string): boolean {
+    const removed = this.db.exec("DELETE FROM children WHERE id = ?", id).rowsWritten;
+    if (removed > 0) this.childrenChanged();
+    return removed > 0;
+  }
+
+  /** Increases whenever children change, so stored mail can be re-read for relevance. */
+  childrenVersion(): number {
+    return (
+      this.db
+        .exec<{ value: number }>("SELECT value FROM meta WHERE key = 'children_version'")
+        .toArray()[0]?.value ?? 0
+    );
+  }
+
+  private childrenChanged(): void {
+    this.db.exec(
+      `INSERT INTO meta (key, value) VALUES ('children_version', 1)
+       ON CONFLICT (key) DO UPDATE SET value = value + 1`,
+    );
+  }
+
   /** Adds a verified address to the household. Digests go to every member. */
   addMember(address: string, joinedAt: string): void {
     this.db.exec(
@@ -315,6 +394,19 @@ export function migrate(sql: SqlStorage): void {
       expires_at TEXT NOT NULL
     );
     CREATE INDEX IF NOT EXISTS items_by_date ON items (date);
+    CREATE TABLE IF NOT EXISTS children (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      school TEXT NOT NULL,
+      year_group INTEGER NOT NULL,
+      year_group_as_of INTEGER NOT NULL,
+      class_name TEXT,
+      created_at TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS meta (
+      key TEXT PRIMARY KEY,
+      value INTEGER NOT NULL
+    );
     CREATE TABLE IF NOT EXISTS unreadable (
       message_id TEXT NOT NULL,
       filename TEXT NOT NULL,

@@ -67,24 +67,40 @@ export async function confirmVerification(
   deps: Deps,
   address: string,
 ): Promise<Confirmation> {
+  const state = await addressStub(env, address).lookup();
+  const householdId = state.status === "verified" ? state.householdId : deps.ids.next();
+  const moved = await joinHousehold(env, deps, address, householdId);
+  return {
+    status: state.status === "verified" ? "already-verified" : "verified",
+    householdId,
+    moved,
+  };
+}
+
+/**
+ * Makes `address` a verified member of `householdId` and moves any mail held for it into the
+ * household. Returns how many held messages moved. Safe to repeat. Callers must check the
+ * address isn't already in a different household.
+ */
+export async function joinHousehold(
+  env: Env,
+  deps: Deps,
+  address: string,
+  householdId: string,
+): Promise<number> {
   const now = deps.clock.now().toISOString();
   const addressDo = addressStub(env, address);
+  const household = await householdStub(env, householdId);
+  await household.addMember(address, now);
   let state = await addressDo.lookup();
-  let status: Confirmation["status"] = "already-verified";
-
-  if (state.status !== "verified") {
-    const householdId = deps.ids.next();
-    const household = await householdStub(env, householdId);
-    await household.addMember(address, now);
-    state = await addressDo.link(householdId, now);
-    status = "verified";
+  if (state.status !== "verified") state = await addressDo.link(householdId, now);
+  if (state.status !== "verified" || state.householdId !== householdId) {
+    throw new Error("Address belongs to another household");
   }
-  if (state.status !== "verified") throw new Error("Address did not verify");
 
-  const household = await householdStub(env, state.householdId);
   for (const held of state.pending) {
     const id = held.key.slice(held.key.lastIndexOf("/") + 1).replace(/\.eml$/, "");
-    const key = `mail/${state.householdId}/${id}.eml`;
+    const key = `mail/${householdId}/${id}.eml`;
     const object = await env.MAIL.get(held.key);
     if (object !== null) {
       await env.MAIL.put(key, await object.arrayBuffer(), {
@@ -101,5 +117,5 @@ export async function confirmVerification(
     }
     await addressDo.removePending(held.key);
   }
-  return { status, householdId: state.householdId, moved: state.pending.length };
+  return state.pending.length;
 }

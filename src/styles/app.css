@@ -121,6 +121,36 @@
   .error-summary p {
     @apply mb-0;
   }
+  .field-error {
+    @apply mb-2 font-bold text-error;
+  }
+  .notice {
+    @apply mb-8 border-l-8 border-success bg-panel p-4;
+  }
+  .notice p {
+    @apply mb-0;
+  }
+  .summary-list {
+    @apply mb-6 border-t border-rule;
+  }
+  .summary-row {
+    @apply flex flex-wrap gap-x-6 border-b border-rule py-3;
+  }
+  .summary-row dt {
+    @apply w-40 font-bold;
+  }
+  .summary-row dd {
+    @apply flex-1;
+  }
+  .summary-row .summary-actions {
+    @apply flex-none text-right;
+  }
+  .list {
+    @apply mb-6 list-disc pl-6;
+  }
+  .rule {
+    @apply my-8 border-rule;
+  }
   .inset {
     @apply my-6 border-l-8 border-rule py-2 pl-4;
   }

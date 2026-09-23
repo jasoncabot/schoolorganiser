@@ -66,7 +66,9 @@ export function page(title: string, body: Html, status = 200): Response {
     headers: {
       "Content-Type": "text/html; charset=utf-8",
       "Cache-Control": "no-store",
-      "Referrer-Policy": "no-referrer",
+      // same-origin, not no-referrer: with no-referrer Chrome sends "Origin: null" on our own
+      // form posts, which sameOrigin() refuses. Nothing is sent to other sites either way.
+      "Referrer-Policy": "same-origin",
       "X-Content-Type-Options": "nosniff",
       "Content-Security-Policy":
         "default-src 'none'; style-src 'self'; font-src 'self'; img-src 'self'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'",

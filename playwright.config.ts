@@ -9,7 +9,8 @@ export default defineConfig({
   retries: 0,
   reporter: process.env.CI ? "list" : [["list"], ["html", { open: "never" }]],
   use: {
-    baseURL: `http://127.0.0.1:${String(port)}`,
+    // Must match APP_ORIGIN in test/wrangler.test.jsonc: form posts are checked against it.
+    baseURL: `http://localhost:${String(port)}`,
     trace: "retain-on-failure",
     timezoneId: "Europe/London",
     locale: "en-GB",

@@ -1,7 +1,9 @@
 import type { Deps } from "../deps";
 import { confirmVerification, readVerificationToken } from "../verification";
-import { householdPage } from "./household";
+import { householdRoutes } from "./household";
+import { join } from "./join";
 import { html, page } from "./html";
+import { sessionCookie } from "./session";
 import { confirmSignIn, signIn, signOut } from "./sign-in";
 
 /** Worker-rendered pages. Static pages and assets are served by Workers static assets first. */
@@ -11,7 +13,10 @@ export async function handleRequest(request: Request, env: Env, deps: Deps): Pro
   if (url.pathname === "/sign-in") return signIn(request, env, deps);
   if (url.pathname === "/sign-in/confirm") return confirmSignIn(request, env, deps);
   if (url.pathname === "/sign-out") return signOut(request, env);
-  if (url.pathname === "/household") return householdPage(request, env, deps);
+  if (url.pathname === "/household" || url.pathname.startsWith("/household/")) {
+    return householdRoutes(request, env, deps);
+  }
+  if (url.pathname === "/join") return join(request, env, deps);
   if (url.pathname === "/__test/outbox") return testOutbox(url, env);
   return env.ASSETS.fetch(request);
 }
@@ -74,15 +79,24 @@ async function verify(request: Request, url: URL, env: Env, deps: Deps): Promise
           We've added the ${result.moved === 1 ? "email" : `${String(result.moved)} emails`} you
           already sent.
         </p>`;
-  return page(
+  const response = page(
     "You're all set",
     html`<h1>You're all set</h1>
       ${saved}
       <p>
         Keep forwarding school emails to <strong>hello@${new URL(env.APP_ORIGIN).hostname}</strong>.
         Your first summary arrives on Sunday evening.
-      </p>`,
+      </p>
+      <h2>Next, add your children</h2>
+      <p>
+        Letters often cover every year group. Tell us your children's schools and year groups so
+        your summary only shows what applies to them.
+      </p>
+      <p><a href="/household/children/new" class="button">Add your children</a></p>`,
   );
+  // Confirming proves the address is theirs, so sign them in too.
+  response.headers.append("Set-Cookie", await sessionCookie(env, deps, address));
+  return response;
 }
 
 function invalidLink(): Response {
