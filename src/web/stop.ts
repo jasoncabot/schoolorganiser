@@ -78,7 +78,8 @@ export async function stop(request: Request, env: Env, deps: Deps): Promise<Resp
       <p>
         We won't send the weekly summary to <strong>${payload.address}</strong>. We've kept your
         household's details and emails.
-      </p>`,
+      </p>
+      <p><a href="/household">Sign in</a> to start it again.</p>`,
   );
 }
 

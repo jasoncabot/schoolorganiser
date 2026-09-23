@@ -41,11 +41,14 @@ We use it only to provide the service you signed up for:
 | Original emails and attachments, and the text we read from them           | 90 days after we receive them, then deleted automatically        |
 | A temporary copy of a PDF attachment, while we turn its pages into images | Deleted as soon as that's done (at most 1 day)                   |
 | Extracted information (dates, costs, locations)                           | 90 days after the date it relates to, then deleted automatically |
-| Children and schools you add                                              | Until you delete them or close your account                      |
-| Your email address                                                        | Until you remove it or close your account                        |
+| Children and schools you add                                              | Until you delete them or your household's data                   |
+| Your email address                                                        | Until you leave the household or delete its data                 |
 | Service logs                                                              | 7 days                                                           |
 
-Stopping the weekly email does not delete anything. To delete everything, use **Delete my data** on the web page. It takes effect straight away.
+Stopping the weekly email does not delete anything. On the web page you can:
+
+- **Leave the household**: we forget your address; the household's data stays for the others in it.
+- **Delete your household's data**: we delete the forwarded emails, everything read from them, the children and every address in the household. It takes effect straight away.
 
 ## Who processes it
 

@@ -21,6 +21,8 @@ Settled with the owner. Don't reopen without asking. Replace a decision when it 
 - An unknown sender's mail is held for 7 days and they get a signed verification link (at most one a day). Confirming creates a household, moves the held mail into it and signs them in.
 - A household can have several verified addresses; one digest goes to all of them. Members invite others by a 7-day link. An address in another household can't join (no merging).
 - Sign-in is by emailed link: 30 minutes, verified addresses only, at most one every two minutes, same answer for unknown addresses. Sessions are signed cookies (HttpOnly, Secure, SameSite=Lax, 30 days), re-checked against the address on every request.
+- The household page shows everything coming up (from today, grouped by day), and lets the signed-in member stop or restart their own weekly email.
+- "Delete your household's data" deletes everything for every member, after a confirmation that names how many others it affects. A member of a household with others can instead leave, which forgets only their address. The last member can only delete.
 - Links from emails show a button; only POST changes anything, because mail scanners follow links. POSTs with a foreign `Origin` are refused.
 
 ## Children and relevance
@@ -43,7 +45,7 @@ Settled with the owner. Don't reopen without asking. Replace a decision when it 
 ## Digest
 
 - Sunday at 6pm UK time, scheduled per household (no global cron), at most one every 6 days.
-- Covers Monday to Sunday, grouped by day, child's name on each line. At most 15 item lines across both sections, then "Plus N more."
+- Covers Monday to Sunday, grouped by day, child's name on each line. At most 15 item lines across both sections, then "Plus N more", linking to the upcoming page.
 - A "Coming up" section for deadlines and payments in the two weeks after that.
 - Items for "maybe" children read "Oak class (may be Ada's)". Repeats (same date, time, title and children) are shown once.
 - A quiet week sends "Nothing on this week."

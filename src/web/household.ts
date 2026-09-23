@@ -9,11 +9,13 @@ import {
   type ChildInput,
 } from "../children";
 import type { Deps } from "../deps";
+import { childNames, describeItem, relevantItems } from "../email/digest";
 import { invitationEmail } from "../email/outbound";
 import { addDays } from "../retention";
 import { signToken } from "../tokens";
+import { dayLabel, londonDate } from "../uk-time";
 import { html, page, type Html } from "./html";
-import { readSession, sameOrigin, type Session } from "./session";
+import { clearSessionCookie, readSession, sameOrigin, type Session } from "./session";
 import { notAllowed, redirect } from "./sign-in";
 
 /** How long an invitation link lasts. */
@@ -55,6 +57,19 @@ export async function householdRoutes(request: Request, env: Env, deps: Deps): P
   }
   if (path === "/household/members" && request.method === "POST")
     return invite(request, env, deps, session);
+  if (path === "/household/upcoming" && request.method === "GET")
+    return upcoming(env, deps, session);
+  if (path === "/household/digest" && request.method === "POST") {
+    const choice = (await request.formData()).get("digest");
+    if (choice === "stop") {
+      await household.stopDigest(session.address, deps.clock.now().toISOString());
+    } else if (choice === "start") {
+      await household.startDigest(session.address);
+    }
+    return redirect("/household");
+  }
+  if (path === "/household/delete") return deleteData(request, env, session);
+  if (path === "/household/leave") return leave(request, env, session);
 
   const child = /^\/household\/children\/([\w-]+)(\/remove)?$/.exec(path);
   if (child?.[1] !== undefined) {
@@ -121,12 +136,33 @@ async function overview(env: Env, deps: Deps, session: Session, notice?: Html): 
       </div>`,
   );
   const memberRows = members.map(
-    (m) => html`<li>${m.address}${m.address === session.address ? " (you)" : ""}</li>`,
+    (m) =>
+      html`<li>
+        ${m.address}${m.address === session.address ? " (you)" : ""}${m.digestStoppedAt === null ? "" : ", weekly email stopped"}
+      </li>`,
   );
+  const stopped = members.find((m) => m.address === session.address)?.digestStoppedAt != null;
+  const digestToggle = stopped
+    ? html`<p>You've stopped the weekly email.</p>
+        <form method="post" action="/household/digest">
+          <button type="submit" name="digest" value="start" class="button">
+            Start my weekly email again
+          </button>
+        </form>`
+    : html`<form method="post" action="/household/digest">
+        <button type="submit" name="digest" value="stop" class="button-secondary">
+          Stop my weekly email
+        </button>
+      </form>`;
+  const leaveLink =
+    members.length > 1
+      ? html`<li><a href="/household/leave">Leave this household</a></li>`
+      : html``;
   return page(
     "Your household",
     html`${notice ?? html``}
       <h1>Your household</h1>
+      <p><a href="/household/upcoming">See everything coming up</a></p>
       <h2>Children</h2>
       <p class="hint">
         We use these to work out which parts of each school email apply to your children.
@@ -150,6 +186,13 @@ async function overview(env: Env, deps: Deps, session: Session, notice?: Html): 
         />
         <button type="submit" class="button-secondary">Send invitation</button>
       </form>
+      <h2>Your weekly email</h2>
+      ${digestToggle}
+      <h2>Your data</h2>
+      <ul class="list">
+        ${leaveLink}
+        <li><a href="/household/delete">Delete your household's data</a></li>
+      </ul>
       <hr class="rule" />
       <p>Signed in as <strong>${session.address}</strong>.</p>
       <form method="post" action="/sign-out">
@@ -209,6 +252,112 @@ async function invite(request: Request, env: Env, deps: Deps, session: Session):
       <p>We've emailed ${address} a link to join. It works for ${String(INVITE_DAYS)} days.</p>
     </div>`,
   );
+}
+
+/** Every relevant item from today on, grouped by day. */
+async function upcoming(env: Env, deps: Deps, session: Session): Promise<Response> {
+  const household = await householdStub(env, session.householdId);
+  const [items, children] = await Promise.all([household.items(), household.children()]);
+  const today = londonDate(deps.clock.now());
+  const names = childNames(children);
+  const days = new Map<string, string[]>();
+  for (const item of relevantItems(items).filter((i) => i.date >= today)) {
+    days.set(item.date, [...(days.get(item.date) ?? []), describeItem(item, names)]);
+  }
+  const hello = `hello@${new URL(env.APP_ORIGIN).hostname}`;
+  const body =
+    days.size === 0
+      ? html`<p>Nothing coming up yet. Forward school emails to <strong>${hello}</strong>.</p>`
+      : [...days].map(
+          ([date, lines]) =>
+            html`<h2>${dayLabel(date)}</h2>
+              <ul class="list">
+                ${lines.map((l) => html`<li>${l}</li>`)}
+              </ul>`,
+        );
+  return page(
+    "Coming up",
+    html`<p><a href="/household">Back</a></p>
+      <h1>Coming up</h1>
+      ${body}`,
+  );
+}
+
+/** GET asks for confirmation; POST deletes the household's data and forgets every member. */
+async function deleteData(request: Request, env: Env, session: Session): Promise<Response> {
+  const household = await householdStub(env, session.householdId);
+  if (request.method === "GET") {
+    const others = (await household.members()).length - 1;
+    return page(
+      "Delete your household's data",
+      html`<p><a href="/household">Back</a></p>
+        <h1>Delete your household's data</h1>
+        <p>
+          This deletes the emails you've forwarded, everything we read from them, your children's
+          details and every address in the household. It can't be undone.
+        </p>
+        ${
+          others > 0
+            ? html`<p>
+                ${others === 1 ? "The other person" : `The other ${String(others)} people`} in your
+                household will stop getting the weekly email too. To remove only yourself,
+                <a href="/household/leave">leave the household</a> instead.
+              </p>`
+            : html``
+        }
+        <form method="post" action="/household/delete">
+          <button type="submit" class="button-warning">Delete everything</button>
+        </form>`,
+    );
+  }
+  if (request.method !== "POST") return notAllowed();
+  const members = await household.deleteEverything();
+  for (const address of members) await addressStub(env, address).forget();
+  try {
+    // Removes the agent's own tables and schedules. It aborts the object when done, which
+    // can surface here as an error; our data is already gone by then.
+    await household.destroy();
+  } catch {
+    // Nothing to do.
+  }
+  const response = page(
+    "Data deleted",
+    html`<h1>Your household's data is deleted</h1>
+      <p>We've deleted everything we held for your household.</p>
+      <p>To start again, forward a school email to us.</p>`,
+  );
+  response.headers.append("Set-Cookie", clearSessionCookie);
+  return response;
+}
+
+/** GET asks for confirmation; POST removes the signed-in address from the household. */
+async function leave(request: Request, env: Env, session: Session): Promise<Response> {
+  const household = await householdStub(env, session.householdId);
+  if ((await household.members()).length < 2) return redirect("/household/delete");
+  if (request.method === "GET") {
+    return page(
+      "Leave this household",
+      html`<p><a href="/household">Back</a></p>
+        <h1>Leave this household</h1>
+        <p>
+          We'll forget <strong>${session.address}</strong> and stop sending it the weekly email. The
+          household's emails and children stay for the people still in it.
+        </p>
+        <form method="post" action="/household/leave">
+          <button type="submit" class="button-warning">Leave household</button>
+        </form>`,
+    );
+  }
+  if (request.method !== "POST") return notAllowed();
+  await household.removeMember(session.address);
+  await addressStub(env, session.address).forget();
+  const response = page(
+    "You've left",
+    html`<h1>You've left the household</h1>
+      <p>We've forgotten your address. To start again, forward a school email to us.</p>`,
+  );
+  response.headers.append("Set-Cookie", clearSessionCookie);
+  return response;
 }
 
 /** The household's schools, for suggestions when adding a child. */

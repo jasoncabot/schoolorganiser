@@ -106,6 +106,9 @@
       @apply font-mono text-[0.9em];
     }
   }
+  .button-warning {
+    @apply inline-block cursor-pointer rounded-md bg-error px-4 py-2 font-semibold text-page no-underline hover:brightness-90;
+  }
   .button-secondary {
     @apply inline-block cursor-pointer rounded-md border-2 border-brand bg-page px-4 py-1.5 font-semibold text-brand no-underline hover:bg-panel visited:text-brand;
   }

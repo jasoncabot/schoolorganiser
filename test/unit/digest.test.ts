@@ -205,9 +205,10 @@ describe("digestEmail", () => {
     });
     const lines = email.text.split("\n");
     expect(lines.filter((l) => l.startsWith("- "))).toHaveLength(MAX_LINES);
-    expect(lines).toContain("Plus 2 more.");
+    expect(lines).toContain("Plus 2 more: https://school.example.com/household/upcoming");
     expect(lines).toContain("Coming up");
-    expect(lines).toContain("Plus 1 more.");
+    expect(lines).toContain("Plus 1 more: https://school.example.com/household/upcoming");
+    expect(email.html).toContain('<a href="https://school.example.com/household/upcoming"');
   });
 
   it("mentions emails it couldn't read", () => {

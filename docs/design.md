@@ -8,7 +8,7 @@ Plain, high-contrast and accessible, borrowing the clarity of UK public-service 
 - **Type:** headings use **Inter Tight** (bold, balanced line breaks), which is tighter and more modern than the body text but still plain. Body text uses the system sans-serif stack at 19px on desktop.
 - **Fonts are self-hosted.** Inter Tight (OFL) from `@fontsource-variable/inter-tight`, copied into `public/assets/fonts/` by `scripts/copy-assets.mjs`. No font CDNs.
 - **Layout:** single column with a narrow reading width, and generous spacing.
-- **Components:** reuse a small set everywhere: header, button, text input, summary list, notification banner and error summary.
+- **Components:** reuse a small set everywhere: header, button (primary, secondary, and red for deleting), text input, summary list, notification banner and error summary.
 - **Accessibility:** works without JavaScript where possible, uses semantic HTML, shows visible focus and uses labelled inputs.
 
 ## Email

@@ -10,8 +10,8 @@ Each step ships with tests and deploys through Workers Builds.
 6. Sign-in, children, invitations, PDF page images, relevance. **Done.**
 7. Retention: deletion at expiry. **Done.**
 8. Digest: the Sunday email to every member, with a stop link. **Done.**
-9. Rest of the web page: upcoming items (and link "Plus N more." to them), restart a stopped digest, delete data. **Next.**
-10. Playwright journey from forward to digest.
+9. Rest of the web page: upcoming items, restart a stopped digest, leave, delete data. **Done.**
+10. Playwright journey from forward to digest. **Next.**
 11. Owner trial with real mail from both schools; tune extraction and digest copy.
 12. Automatic forwarding rules.
 13. Before other parents join: privacy notice and retention checked in production.

@@ -93,6 +93,15 @@ export class Address extends DurableObject<Env> {
     return { deleted: expired.length, forgotten: false };
   }
 
+  /** Forgets the address and deletes any mail held for it: on deleting data or leaving a household. */
+  async forget(): Promise<void> {
+    const held = this.sql.exec<{ key: string }>("SELECT key FROM pending").toArray();
+    if (held.length > 0) await this.env.MAIL.delete(held.map((h) => h.key));
+    await this.ctx.storage.deleteAlarm();
+    await this.ctx.storage.deleteAll();
+    this.schemaReady = false;
+  }
+
   /** When a purge should next run (the earliest held-mail expiry, rounded up to midnight), or null. */
   purgeDue(): string | null {
     const next = this.sql

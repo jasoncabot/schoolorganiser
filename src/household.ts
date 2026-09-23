@@ -296,6 +296,51 @@ export class Household extends Agent<Env> {
     await this.schedule(nextDigestTime(systemDeps.clock.now()), "digestScheduled");
   }
 
+  /** Starts digests to one member again. Returns false if they aren't a member. */
+  startDigest(address: string): boolean {
+    return (
+      this.db.exec("UPDATE members SET digest_stopped_at = NULL WHERE address = ?", address)
+        .rowsWritten > 0
+    );
+  }
+
+  /** Removes one member. Their address must be forgotten separately (Address.forget). */
+  removeMember(address: string): boolean {
+    return this.db.exec("DELETE FROM members WHERE address = ?", address).rowsWritten > 0;
+  }
+
+  /**
+   * Deletes everything the household holds, in R2 and here, and returns the members' addresses
+   * so the caller can forget them. Call destroy() afterwards to remove the agent's own state.
+   * Never logs content or addresses.
+   */
+  async deleteEverything(): Promise<string[]> {
+    const members = this.members().map((m) => m.address);
+    const keys = this.db
+      .exec<{ r2_key: string }>("SELECT r2_key FROM messages")
+      .toArray()
+      .map((m) => m.r2_key);
+    // Also anything under the household's prefix that no row points to.
+    let cursor: string | undefined;
+    do {
+      const listed = await this.env.MAIL.list({ prefix: `mail/${this.name}/`, cursor });
+      keys.push(...listed.objects.map((o) => o.key));
+      cursor = listed.truncated ? listed.cursor : undefined;
+    } while (cursor !== undefined);
+    const unique = [...new Set(keys)];
+    for (let i = 0; i < unique.length; i += 1000) {
+      await this.env.MAIL.delete(unique.slice(i, i + 1000));
+    }
+    this.ctx.storage.transactionSync(() => {
+      for (const table of ["items", "unreadable", "messages", "children", "members", "meta"]) {
+        this.db.exec(`DELETE FROM ${table}`);
+      }
+    });
+    for (const schedule of await this.listSchedules()) await this.cancelSchedule(schedule.id);
+    console.log("household deleted", { objects: unique.length, members: members.length });
+    return members;
+  }
+
   /** Stops digests to one member. Returns false if they aren't a member. */
   stopDigest(address: string, now: string): boolean {
     return (

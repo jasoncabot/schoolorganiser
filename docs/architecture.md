@@ -11,7 +11,7 @@ forwarded mail ─▶ Email Routing ─▶ email()  src/email/inbound.ts
                                           └─ verified ─▶ Household agent: receive → process → items
 
 browser ─▶ static assets (/, /privacy, /render-pdf, /assets)
-        └▶ fetch()  src/web/routes.ts: /verify, /sign-in, /household, /join, /stop, /render-source
+        └▶ fetch()  src/web/routes.ts: /verify, /sign-in, /household (children, members, upcoming, weekly email, leave, delete), /join, /stop, /render-source
 ```
 
 ## Storage

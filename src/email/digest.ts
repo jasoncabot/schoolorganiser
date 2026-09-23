@@ -53,26 +53,27 @@ export function digestEmail(input: DigestInput): OutboundEmail {
   const first = addDaysToDate(londonDate(input.now), 1);
   const last = addDaysToDate(first, 6);
   const comingUpLast = addDaysToDate(first, COMING_UP_DAYS - 1);
-  const names = new Map(input.children.map((c) => [c.id, c.name]));
-  const relevant = unique(input.items.filter(isRelevant).sort(byDateAndTime));
+  const names = childNames(input.children);
+  const relevant = relevantItems(input.items);
 
   const week = relevant
     .filter((i) => i.date >= first && i.date <= last)
-    .map((i) => ({ date: i.date, text: describe(i, names) }));
+    .map((i) => ({ date: i.date, text: describeItem(i, names) }));
   const comingUp = relevant
     .filter(
       (i) =>
         (i.kind === "deadline" || i.kind === "payment") && i.date > last && i.date <= comingUpLast,
     )
-    .map((i) => ({ date: i.date, text: `${dayLabel(i.date)}, ${describe(i, names)}` }));
+    .map((i) => ({ date: i.date, text: `${dayLabel(i.date)}, ${describeItem(i, names)}` }));
   const weekShown = week.slice(0, MAX_LINES);
   const comingUpShown = comingUp.slice(0, MAX_LINES - weekShown.length);
 
   const heading = `Week of ${dayLabel(first)}`;
   const subject = `School this week: ${dayLabel(first)} to ${dayLabel(last)}`;
   const hello = `hello@${new URL(input.appOrigin).hostname}`;
+  const upcoming = `${input.appOrigin}/household/upcoming`;
   const more = (shown: Line[], all: Line[]): string | null =>
-    all.length > shown.length ? `Plus ${String(all.length - shown.length)} more.` : null;
+    all.length > shown.length ? `Plus ${String(all.length - shown.length)} more` : null;
   const unreadable =
     input.unreadable.length === 0
       ? null
@@ -92,8 +93,8 @@ export function digestEmail(input: DigestInput): OutboundEmail {
   }
   const weekMore = more(weekShown, week);
   if (weekMore !== null) {
-    text.push(weekMore, "");
-    html.push(paragraph(weekMore));
+    text.push(`${weekMore}: ${upcoming}`, "");
+    html.push(moreLink(weekMore, upcoming));
   }
   if (comingUp.length > 0) {
     text.push("Coming up", ...comingUpShown.map((l) => `- ${l.text}`));
@@ -101,8 +102,8 @@ export function digestEmail(input: DigestInput): OutboundEmail {
     if (comingUpShown.length > 0) html.push(list(comingUpShown));
     const comingUpMore = more(comingUpShown, comingUp);
     if (comingUpMore !== null) {
-      text.push(comingUpMore);
-      html.push(paragraph(comingUpMore));
+      text.push(`${comingUpMore}: ${upcoming}`);
+      html.push(moreLink(comingUpMore, upcoming));
     }
     text.push("");
   }
@@ -125,6 +126,15 @@ export function digestEmail(input: DigestInput): OutboundEmail {
     text: text.join("\n"),
     html: layout(heading, html.join("\n"), input.appOrigin, hello, input.stopLink),
   };
+}
+
+/** Items for the household's children (or "maybe"), by date and time, without repeats. */
+export function relevantItems(items: StoredItem[]): StoredItem[] {
+  return unique(items.filter(isRelevant).sort(byDateAndTime));
+}
+
+export function childNames(children: Child[]): Map<string, string> {
+  return new Map(children.map((c) => [c.id, c.name]));
 }
 
 function isRelevant(item: StoredItem): boolean {
@@ -154,7 +164,7 @@ function unique(items: StoredItem[]): StoredItem[] {
 }
 
 /** "Ada: Trip to Chester Zoo, 8:15am, Chester Zoo, £18.50" */
-function describe(item: StoredItem, names: Map<string, string>): string {
+export function describeItem(item: StoredItem, names: Map<string, string>): string {
   const details = [
     item.title,
     item.time === null ? null : ukTime(item.time),
@@ -206,6 +216,10 @@ function subheading(text: string): string {
 function list(lines: Line[]): string {
   const items = lines.map((l) => `<li style="margin:0 0 4px">${escape(l.text)}</li>`).join("");
   return `<ul style="margin:0 0 16px;padding-left:20px">${items}</ul>`;
+}
+
+function moreLink(text: string, href: string): string {
+  return `<p style="margin:0 0 16px"><a href="${escape(href)}" style="color:${COLOURS.link}">${escape(text)}</a></p>`;
 }
 
 function paragraph(text: string, colour = COLOURS.ink): string {
