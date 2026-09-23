@@ -27,6 +27,7 @@ function item(overrides: Partial<ExtractedItem>): ExtractedItem {
     forChildren: [],
     maybeChildren: [],
     dateUnsure: false,
+    repeats: null,
     ...overrides,
   };
 }

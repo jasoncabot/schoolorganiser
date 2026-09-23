@@ -42,13 +42,18 @@ export function resolveDate(
  * `choices`), and small models sometimes bend the schema, so every field is checked.
  * Items that don't make sense are dropped rather than failing the whole message.
  */
-export function parseExtraction(result: unknown, sentAt: string): ExtractedItem[] | null {
+export function parseExtraction(
+  result: unknown,
+  sentAt: string,
+  /** The letter's text, to check times against. Omit when the model also saw page images. */
+  sourceText?: string,
+): ExtractedItem[] | null {
   const payload = unwrap(result);
   if (payload === null || typeof payload !== "object" || !("items" in payload)) return null;
   const items = payload.items;
   if (!Array.isArray(items)) return null;
   return items.flatMap((raw) => {
-    const item = cleanItem(raw, sentAt);
+    const item = cleanItem(raw, sentAt, sourceText);
     return item === null ? [] : [item];
   });
 }
@@ -72,7 +77,7 @@ export function parseNotes(result: unknown): ExtractedNote[] {
         {
           text: noteText,
           school: text(r.school, 120),
-          child: text(r.child, 80),
+          child: audienceOf(r.child, r.school),
           forChildren: names(r.for),
           maybeChildren: names(r.maybe),
         },
@@ -106,7 +111,25 @@ export function weekdayNumber(value: unknown): number | null {
   return index === -1 ? null : index;
 }
 
-function cleanItem(raw: unknown, sentAt: string): ExtractedItem | null {
+/**
+ * Whether a letter's text states a clock time, written any usual way: 15:30 appears as
+ * "15:30", "15.30", "3:30", "3.30" or "3.30pm"; 15:00 also as "3pm" or "3 pm".
+ */
+export function statesTime(text: string, time: string): boolean {
+  const [h = 0, m = 0] = time.split(":").map(Number);
+  const hours = [String(h), String(h).padStart(2, "0"), String(h % 12 === 0 ? 12 : h % 12)];
+  const mm = String(m).padStart(2, "0");
+  const forms = hours.flatMap((hh) => [`${hh}:${mm}`, `${hh}.${mm}`]);
+  if (m === 0) {
+    const suffix = h < 12 ? "am" : "pm";
+    forms.push(...hours.map((hh) => `${hh}${suffix}`), ...hours.map((hh) => `${hh} ${suffix}`));
+    if (h === 12) forms.push("noon", "midday");
+  }
+  const lower = text.toLowerCase();
+  return forms.some((f) => new RegExp(`(^|[^\\d])${f.replaceAll(".", "\\.")}`).test(lower));
+}
+
+function cleanItem(raw: unknown, sentAt: string, sourceText?: string): ExtractedItem | null {
   if (raw === null || typeof raw !== "object") return null;
   const r = raw as Record<string, unknown>;
   const day = integer(r.day);
@@ -123,8 +146,13 @@ function cleanItem(raw: unknown, sentAt: string): ExtractedItem | null {
   const weekday = weekdayNumber(r.weekday);
   const dateUnsure = weekday !== null && new Date(`${date}T00:00:00.000Z`).getUTCDay() !== weekday;
   const kind = ITEM_KINDS.includes(r.kind as ItemKind) ? (r.kind as ItemKind) : "other";
+  // Small models fill in "after school" as a time; keep only times the letter states.
   const time =
-    typeof r.time === "string" && /^([01]\d|2[0-3]):[0-5]\d$/.test(r.time) ? r.time : null;
+    typeof r.time === "string" &&
+    /^([01]\d|2[0-3]):[0-5]\d$/.test(r.time) &&
+    (sourceText === undefined || statesTime(sourceText, r.time))
+      ? r.time
+      : null;
   return {
     date,
     time,
@@ -133,12 +161,26 @@ function cleanItem(raw: unknown, sentAt: string): ExtractedItem | null {
     cost: text(r.cost, 40),
     location: text(r.location, 120),
     school: text(r.school, 120),
-    child: text(r.child, 80),
+    child: audienceOf(r.child, r.school),
     confidence: r.confidence === "high" && !dateUnsure ? "high" : "low",
     dateUnsure,
+    repeats: text(r.repeats, 160),
     forChildren: names(r.for),
     maybeChildren: names(r.maybe),
   };
+}
+
+/**
+ * The item's audience, or null when the model gave the school's own name there: a school name
+ * would otherwise read as a class name and make the item a "maybe".
+ */
+function audienceOf(child: unknown, school: unknown): string | null {
+  const audience = text(child, 80);
+  const schoolName = text(school, 120);
+  if (audience === null) return null;
+  const a = audience.toLowerCase();
+  const s = schoolName?.toLowerCase();
+  return s !== undefined && (a === s || s.includes(a) || a.includes(s)) ? null : audience;
 }
 
 function names(value: unknown): string[] {

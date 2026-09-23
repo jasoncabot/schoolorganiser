@@ -77,6 +77,7 @@ export function migrate(sql: SqlStorage): void {
     child_ids: "TEXT",
     maybe_child_ids: "TEXT",
     date_unsure: "INTEGER NOT NULL DEFAULT 0",
+    repeats: "TEXT",
   });
   addMissingColumns(sql, "members", { digest_stopped_at: "TEXT" });
 }

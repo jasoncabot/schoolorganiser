@@ -223,7 +223,9 @@ export function describeItem(item: StoredItem, names: Map<string, string>): stri
     .filter((d) => d !== null)
     .join(", ");
   const who = audience(item, names);
-  const line = who === null ? details : `${who}: ${details}`;
+  const line =
+    (who === null ? details : `${who}: ${details}`) +
+    (item.repeats === null ? "" : ` (${item.repeats.replace(/\.$/, "")})`);
   return item.dateUnsure ? `${line} (check the date)` : line;
 }
 

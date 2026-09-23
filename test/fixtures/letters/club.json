@@ -5,8 +5,13 @@
   "expected": [
     {
       "date": "2026-10-07",
-      "kind": "event"
+      "kind": "event",
+      "repeats": "Wednesday"
+    },
+    {
+      "date": "2026-10-28",
+      "kind": ["closure", "other", "event"]
     }
   ],
-  "noteIncludes": ["£72", "coach@example.com"]
+  "noteIncludes": ["coach@example.com"]
 }

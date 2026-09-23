@@ -66,6 +66,42 @@ describe("parseExtraction", () => {
     expect(parsed?.confidence).toBe("low");
   });
 
+  it("drops a time the letter doesn't state", () => {
+    const parse = (time: string, text: string) =>
+      parseExtraction(
+        { response: { items: [{ ...item, time }] } },
+        "2025-09-29T15:10:00.000Z",
+        text,
+      )?.[0]?.time;
+    expect(parse("15:30", "Judo club after school on Wednesdays.")).toBeNull();
+    expect(parse("15:30", "Judo club from 3.30pm on Wednesdays.")).toBe("15:30");
+    expect(parse("15:30", "Judo club 15:30 to 16:30.")).toBe("15:30");
+    expect(parse("15:00", "Finish at 3pm.")).toBe("15:00");
+    expect(parse("08:15", "Coach leaves at 8.15am.")).toBe("08:15");
+    expect(parse("09:00", "Room 19:00 booked")).toBeNull();
+    expect(parse("12:00", "Finish at midday.")).toBe("12:00");
+  });
+
+  it("drops an audience that's the school's own name", () => {
+    const [parsed] =
+      parseExtraction(
+        {
+          response: { items: [{ ...item, school: "Oakfield Primary", child: "Oakfield Primary" }] },
+        },
+        "2025-09-29T15:10:00.000Z",
+      ) ?? [];
+    expect(parsed?.child).toBeNull();
+  });
+
+  it("keeps how often a recurring event runs", () => {
+    const [parsed] =
+      parseExtraction(
+        { response: { items: [{ ...item, repeats: "Every Wednesday until 9 December" }] } },
+        "2025-09-29T15:10:00.000Z",
+      ) ?? [];
+    expect(parsed?.repeats).toBe("Every Wednesday until 9 December");
+  });
+
   it("ignores a weekday that isn't one", () => {
     const [parsed] =
       parseExtraction(
@@ -88,6 +124,7 @@ describe("parseExtraction", () => {
         child: "Year 3",
         confidence: "high",
         dateUnsure: false,
+        repeats: null,
         forChildren: [],
         maybeChildren: [],
       },

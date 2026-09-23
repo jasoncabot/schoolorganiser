@@ -15,7 +15,7 @@ const trip = (tag: string): string =>
   mimeEmail({
     from: "parent@example.com",
     subject: `Fwd: Year 3 trip to Chester Zoo (${tag})`,
-    text: "Year 3 will visit Chester Zoo on Thursday 16th October. The cost is £18.50, due by Friday 10th October.",
+    text: "Year 3 will visit Chester Zoo on Thursday 16th October; the coach leaves at 8.15am. The cost is £18.50, due by Friday 10th October.",
     attachments: [
       { filename: "old-form.doc", contentType: "application/msword", bytes: "old doc" },
     ],
@@ -154,6 +154,7 @@ describe("processing", () => {
         childIds: null,
         maybeChildIds: [],
         dateUnsure: false,
+        repeats: null,
         source,
       },
       {
@@ -165,6 +166,7 @@ describe("processing", () => {
         childIds: null,
         maybeChildIds: [],
         dateUnsure: false,
+        repeats: null,
         source,
       },
     ]);

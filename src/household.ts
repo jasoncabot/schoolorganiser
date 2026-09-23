@@ -475,7 +475,11 @@ export class Household extends Agent<Env> {
           })),
         }),
       );
-      const parsed = parseExtraction(result, sentAt);
+      const parsed = parseExtraction(
+        result,
+        sentAt,
+        message.images.length === 0 ? `${message.subject}\n${message.text}` : undefined,
+      );
       if (parsed === null) throw new Error("UnusableExtraction");
       items = parsed;
       notes = parseNotes(result);
@@ -533,8 +537,8 @@ export class Household extends Agent<Env> {
       read.items.forEach((item, index) => {
         const { childIds, maybeChildIds } = relevance(item, read.children);
         this.db.exec(
-          `INSERT INTO items (id, message_id, date, time, kind, title, cost, location, school, child, confidence, expires_at, child_ids, maybe_child_ids, date_unsure)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          `INSERT INTO items (id, message_id, date, time, kind, title, cost, location, school, child, confidence, expires_at, child_ids, maybe_child_ids, date_unsure, repeats)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           `${id}-${String(index)}`,
           id,
           item.date,
@@ -550,6 +554,7 @@ export class Household extends Agent<Env> {
           childIds === null ? null : JSON.stringify(childIds),
           JSON.stringify(maybeChildIds),
           item.dateUnsure ? 1 : 0,
+          item.repeats,
         );
       });
       read.notes.forEach((note, index) => {
@@ -742,6 +747,7 @@ export class Household extends Agent<Env> {
         child_ids: string | null;
         maybe_child_ids: string | null;
         date_unsure: number;
+        repeats: string | null;
         subject: string | null;
         received_at: string | null;
       }>(
@@ -767,6 +773,7 @@ export class Household extends Agent<Env> {
         maybeChildIds:
           i.maybe_child_ids === null ? [] : (JSON.parse(i.maybe_child_ids) as string[]),
         dateUnsure: i.date_unsure === 1,
+        repeats: i.repeats,
         source: i.received_at === null ? null : { subject: i.subject, receivedAt: i.received_at },
       }));
   }

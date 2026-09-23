@@ -12,7 +12,7 @@ export const EXTRACTION_MODEL = "@cf/mistralai/mistral-small-3.1-24b-instruct";
  * Bump when reading or extraction changes in a way worth re-running on stored mail (prompt,
  * model, PDF layout). Messages read by an older version are re-read on the next processing run.
  */
-export const EXTRACTION_VERSION = 7;
+export const EXTRACTION_VERSION = 8;
 
 export const ITEM_KINDS = [
   "event",
@@ -39,6 +39,8 @@ export interface ExtractedItem {
   confidence: "high" | "low";
   /** The letter's weekday doesn't match the date, so the date may be wrong. */
   dateUnsure: boolean;
+  /** For a club, class or other recurring event, how often it runs, as the letter says. */
+  repeats: string | null;
   /**
    * Names of the household's children this item applies to, as the model gave them, or null when
    * the household had no children set up (then everything counts as relevant).
@@ -88,6 +90,10 @@ export const EXTRACTION_SCHEMA = {
           school: { type: ["string", "null"] },
           child: { type: ["string", "null"] },
           confidence: { type: "string", enum: ["high", "low"] },
+          repeats: {
+            type: ["string", "null"],
+            description: "How often a recurring event runs, as the letter says",
+          },
           for: {
             type: "array",
             items: { type: "string" },
@@ -112,6 +118,7 @@ export const EXTRACTION_SCHEMA = {
           "school",
           "child",
           "confidence",
+          "repeats",
           "for",
           "maybe",
         ],
@@ -150,16 +157,17 @@ Return JSON: {"items": [...], "notes": [...]}.
 
 Rules:
 - Only include items with a specific day and month. Skip anything undated.
-- Skip regular weekly routines (e.g. "PE is every Tuesday"): they have no single date. Only include a routine if it starts, stops or changes on a specific date, and then only for that date.
+- A club, class or anything else that repeats gives one item for its first date, with "repeats" saying how often it runs as the letter gives it: days, times, until when and any gaps, only as far as the letter says, e.g. "Mondays and Thursdays at lunchtime until Easter". The first date's kind is usually "event". A date it doesn't run or changes is its own item. For everything else "repeats" is null.
+- A routine with no start date (e.g. "PE is every Tuesday") isn't an item; it can be a note.
 - Dates are UK style (day before month). Give "day" and "month" as numbers. Give "year" only if the letter states it for that date (e.g. "07/09/26" is 2026), otherwise null; never work the year out yourself.
 - "weekday" is the day of the week exactly as the letter gives it next to this date (e.g. "Tue 14th October" gives "Tuesday"), else null. Never work it out yourself.
 - In calendars and tables, a month heading applies to every date listed under it.
 - For a range (e.g. "5th-9th October"), use the first day and say it's a range in the title.
-- "time" is HH:MM in 24-hour time, or null.
+- "time" is HH:MM in 24-hour time, only if the letter states a clock time; "after school", "lunchtime" and "morning" are not times, so give null.
 - "title" is a short British-English phrase, at most 8 words, e.g. "Year 3 trip to Chester Zoo".
 - "cost" is the amount as written with its currency, e.g. "£12.50", or null.
 - "school" is the school's name if the letter says it, else null.
-- "child" is the class, year group or child the item is for if the letter says (e.g. "Year 3", "Oak class"), else null.
+- "child" is the class, year group or child the item is for if the letter says (e.g. "Year 3", "Oak class"), else null. Never the school's name.
 - A trip that needs payment and consent by a deadline gives three items: the trip, the payment and the deadline.
 - "confidence" is "low" if you had to guess the date or what is needed, else "high".
 - Never invent details that aren't in the letter.

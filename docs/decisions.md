@@ -43,7 +43,8 @@ Settled with the owner. Don't reopen without asking. Replace a decision when it 
 - Word, Excel, images and HTML go through Workers AI toMarkdown. PowerPoint is unzipped with `fflate`. `.txt` and `.ics` are read as text. Anything else is recorded as unreadable and mentioned once in the digest.
 - The model returns day, month and year as written. Code fills in a missing year: the next occurrence on or after 31 days before the email was sent.
 - The model also returns the weekday when the letter states one. If it doesn't match the date, the date is kept but shown as "(check the date)" in the digest and on the web page; code never moves it, because a misread date moved elsewhere could hide a real event.
-- Item kinds: event, deadline, payment, kit, timing, closure, other. Weekly routines are skipped unless they start or change on a date (a weekly club gives its first session and any changes, not every session).
+- Item kinds: event, deadline, payment, kit, timing, closure, other. A club or other recurring event gives one item for its first session, with "repeats" saying how often it runs as the letter puts it (e.g. "Wednesdays after school until 9 December; no lesson on 28 October"), plus an item for each date it's off or changes; not one per session. A routine with no start date can be a note.
+- Times are kept only if the letter's text states them ("after school" isn't a time), checked in code when there are no page images. An audience that's just the school's name is dropped.
 - The model also returns up to 5 "notes" per email: points worth knowing without a firm date (clubs and activities, things to buy, rules and reminders, contacts), one sentence each, at most 25 words, one per topic. They never include bank account numbers, sort codes or payment references. Notes use the same children matching as items.
 - Processing is retried 5 minutes apart, up to 3 attempts. Bumping `EXTRACTION_VERSION` re-reads stored mail.
 

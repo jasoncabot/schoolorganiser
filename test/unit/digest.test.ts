@@ -86,6 +86,7 @@ function item(overrides: Partial<StoredItem>): StoredItem {
     childIds: ["c-ada"],
     maybeChildIds: [],
     dateUnsure: false,
+    repeats: null,
     source: { subject: "Fwd: Letter", receivedAt: "2025-10-08T08:00:00.000Z" },
     ...overrides,
   };
@@ -220,6 +221,17 @@ describe("digestEmail", () => {
       "Plus 1 more: https://school.example.com/household/upcoming",
     ]);
     expect(email.html).toContain(">Worth knowing</h2>");
+  });
+
+  it("says how often a recurring event runs", () => {
+    const club = item({
+      title: "Judo club starts",
+      time: "15:15",
+      repeats: "Every Wednesday until 9 December; not 28 October.",
+    });
+    expect(digest({ items: [club] }).text).toContain(
+      "- Ada: Judo club starts, 3:15pm (Every Wednesday until 9 December; not 28 October)\n",
+    );
   });
 
   it("says so in a quiet week", () => {

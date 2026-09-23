@@ -10,6 +10,8 @@ interface Expected {
   /** One kind, or the kinds that are all reasonable readings of the letter. */
   kind: string | string[];
   cost?: string;
+  /** Words that must appear in the item's "repeats". */
+  repeats?: string;
 }
 interface Letter {
   sentAt: string;
@@ -76,7 +78,9 @@ for (const model of models) {
       errors?: unknown;
     };
     neurons += body.result?.usage?.neurons ?? 0;
-    const items = body.success ? parseExtraction(body.result, letter.sentAt) : null;
+    const items = body.success
+      ? parseExtraction(body.result, letter.sentAt, `${letter.subject}\n${letter.text}`)
+      : null;
     if (items === null) {
       failures++;
       expectedTotal += letter.expected.length;
@@ -107,6 +111,10 @@ for (const model of models) {
       }
       found++;
       const [match] = unmatched.splice(i, 1);
+      if (process.env.SHOW_NOTES === "1" && match?.repeats != null)
+        notes.push(`${letter.name}: repeats "${match.repeats}"`);
+      if (exp.repeats !== undefined && !(match?.repeats ?? "").includes(exp.repeats))
+        notes.push(`${letter.name}: repeats "${String(match?.repeats)}" lacks "${exp.repeats}"`);
       if (exp.cost !== undefined) {
         costsTotal++;
         if (normCost(match?.cost) === normCost(exp.cost)) costsRight++;
