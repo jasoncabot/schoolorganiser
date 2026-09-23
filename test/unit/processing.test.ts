@@ -109,6 +109,7 @@ describe("processing", () => {
         date: "2025-10-10",
         ...without(TRIP_ITEMS[1]),
         expiresAt: "2026-01-08T00:00:00.000Z",
+        childIds: null,
       },
       {
         id: "m1-0",
@@ -116,6 +117,7 @@ describe("processing", () => {
         date: "2025-10-16",
         ...without(TRIP_ITEMS[0]),
         expiresAt: "2026-01-14T00:00:00.000Z",
+        childIds: null,
       },
     ]);
     expect(await household.unreadable()).toEqual([
@@ -234,6 +236,11 @@ describe("PDF page images", () => {
         x: 50,
         y: 520,
       },
+      {
+        text: "Children will need a packed lunch, a named water bottle and a waterproof coat.",
+        x: 50,
+        y: 505,
+      },
     ]);
     await registerRender(letter, ["data:image/jpeg;base64,cGFnZQ=="]);
     const raw = mimeEmail({
@@ -248,6 +255,120 @@ describe("PDF page images", () => {
     });
     await process(household, "images");
     expect((await household.items()).map((i) => i.title)).toEqual(["Year 3 trip to Chester Zoo"]);
+  });
+});
+
+describe("which children each item is for", () => {
+  const promptChildren = [
+    { name: "Ada", school: "Oakfield Primary", yearGroup: "Year 3", className: "Oak" },
+    { name: "Sam", school: "Riverside Juniors", yearGroup: "Reception", className: null },
+  ];
+
+  async function withChildren(householdId: string) {
+    const household = await householdStub(env, householdId);
+    await household.addChild(
+      "child-ada",
+      { name: "Ada", school: "Oakfield Primary", yearGroup: 3, className: "Oak" },
+      2025,
+      "2025-09-01T00:00:00.000Z",
+    );
+    await household.addChild(
+      "child-sam",
+      { name: "Sam", school: "Riverside Juniors", yearGroup: 0, className: null },
+      2025,
+      "2025-09-01T00:00:00.000Z",
+    );
+    return household;
+  }
+
+  async function register(
+    raw: string,
+    children: typeof promptChildren,
+    output: unknown,
+  ): Promise<void> {
+    const message = await readMessage(
+      new TextEncoder().encode(raw).buffer as ArrayBuffer,
+      env.AI,
+      pdfRenderer(env),
+    );
+    await registerAiRun(
+      EXTRACTION_MODEL,
+      extractionRequest({
+        sentAt: message.sentAt ?? "",
+        subject: message.subject,
+        text: message.text,
+        images: message.images,
+        children,
+      }),
+      output,
+    );
+  }
+
+  it("tells the model about the children and stores who each item is for", async () => {
+    const householdId = "household-relevance";
+    const household = await withChildren(householdId);
+    const raw = trip(householdId);
+    await register(raw, promptChildren, {
+      response: {
+        items: [
+          { ...TRIP_ITEMS[0], for: ["ada"] },
+          { ...TRIP_ITEMS[1], for: [] },
+          {
+            ...TRIP_ITEMS[1],
+            day: 20,
+            title: "Harvest festival",
+            for: ["Ada", "Sam", "Somebody else"],
+          },
+        ],
+      },
+    });
+    const key = `mail/${householdId}/m1.eml`;
+    await env.MAIL.put(key, raw);
+    await household.receive({
+      id: "m1",
+      key,
+      receivedAt: "2025-09-29T15:11:00.000Z",
+      expiresAt: "2025-12-28T15:11:00.000Z",
+    });
+    await process(household, "relevance");
+
+    expect((await household.items()).map((i) => [i.title, i.childIds])).toEqual([
+      ["Pay for Chester Zoo trip", []],
+      ["Year 3 trip to Chester Zoo", ["child-ada"]],
+      ["Harvest festival", ["child-ada", "child-sam"]],
+    ]);
+  });
+
+  it("re-reads stored mail when the children change", async () => {
+    const householdId = "household-relevance-change";
+    const household = await withChildren(householdId);
+    const raw = trip(householdId);
+    await register(raw, promptChildren, { response: { items: [{ ...TRIP_ITEMS[0], for: [] }] } });
+    const key = `mail/${householdId}/m1.eml`;
+    await env.MAIL.put(key, raw);
+    await household.receive({
+      id: "m1",
+      key,
+      receivedAt: "2025-09-29T15:11:00.000Z",
+      expiresAt: "2025-12-28T15:11:00.000Z",
+    });
+    await process(household, "relevance change first");
+    expect((await household.items()).map((i) => i.childIds)).toEqual([[]]);
+
+    // Ada was actually in Year 3 at the school that sent it... well, now she's added as such.
+    await household.removeChild("child-sam");
+    await register(raw, promptChildren.slice(0, 1), {
+      response: { items: [{ ...TRIP_ITEMS[0], for: ["Ada"] }] },
+    });
+    expect(await process(household, "relevance change again")).toEqual({
+      processed: 1,
+      retry: false,
+    });
+    expect((await household.items()).map((i) => i.childIds)).toEqual([["child-ada"]]);
+    expect(await process(household, "relevance change settled")).toEqual({
+      processed: 0,
+      retry: false,
+    });
   });
 });
 

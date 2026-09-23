@@ -94,6 +94,11 @@ function cleanItem(raw: unknown, sentAt: string): ExtractedItem | null {
     school: text(r.school, 120),
     child: text(r.child, 80),
     confidence: r.confidence === "high" ? "high" : "low",
+    forChildren: Array.isArray(r.for)
+      ? r.for.flatMap((name) =>
+          typeof name === "string" && name.trim() !== "" ? [name.trim()] : [],
+        )
+      : [],
   };
 }
 

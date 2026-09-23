@@ -1,5 +1,5 @@
 import { Agent } from "agents";
-import type { Child, ChildInput } from "./children";
+import { currentYearGroup, yearGroupLabel, type Child, type ChildInput } from "./children";
 import { systemDeps, type Deps } from "./deps";
 import { runModel } from "./extract/ai";
 import { readMessage, type Unreadable } from "./extract/message";
@@ -22,14 +22,21 @@ export interface ReceivedMail {
 
 export type MessageStatus = "new" | "done" | "failed";
 
-export interface StoredItem extends ExtractedItem {
+export interface StoredItem extends Omit<ExtractedItem, "forChildren"> {
   id: string;
   messageId: string;
   expiresAt: string;
+  /**
+   * The household's children this item is for (ids), or null if the household had no children
+   * set up when it was read, in which case it counts as relevant to everyone.
+   */
+  childIds: string[] | null;
 }
 
 /** Attempts at processing one message before it's marked failed. */
 export const MAX_ATTEMPTS = 3;
+/** Wait after children change before re-reading stored mail. */
+const REREAD_DELAY_SECONDS = 60;
 /** Wait between attempts after a transient failure (e.g. Workers AI unavailable). */
 const RETRY_SECONDS = 5 * 60;
 
@@ -78,9 +85,11 @@ export class Household extends Agent<Env> {
     const waiting = this.db
       .exec<{ id: string; r2_key: string; received_at: string; attempts: number }>(
         `SELECT id, r2_key, received_at, attempts FROM messages
-         WHERE status = 'new' OR (status = 'done' AND extraction_version < ?)
+         WHERE status = 'new'
+            OR (status = 'done' AND (extraction_version < ? OR children_version < ?))
          ORDER BY received_at, id`,
         EXTRACTION_VERSION,
+        this.childrenVersion(),
       )
       .toArray();
     let retry = false;
@@ -121,6 +130,9 @@ export class Household extends Agent<Env> {
       pdfRenderer(this.env),
     );
     const sentAt = message.sentAt ?? receivedAt;
+    const children = this.children();
+    const childrenVersion = this.childrenVersion();
+    const now = deps.clock.now();
     let items: ExtractedItem[] = [];
     if (message.text.trim() !== "" || message.images.length > 0) {
       const result = await runModel(
@@ -131,13 +143,29 @@ export class Household extends Agent<Env> {
           subject: message.subject,
           text: message.text,
           images: message.images,
+          children: children.map((c) => ({
+            name: c.name,
+            school: c.school,
+            yearGroup: yearGroupLabel(currentYearGroup(c, now)),
+            className: c.className,
+          })),
         }),
       );
       const parsed = parseExtraction(result, sentAt);
       if (parsed === null) throw new Error("UnusableExtraction");
       items = parsed;
     }
-    this.store(id, sentAt, message.subject, message.text, message.unreadable, items, deps);
+    this.store(
+      id,
+      sentAt,
+      message.subject,
+      message.text,
+      message.unreadable,
+      items,
+      children,
+      childrenVersion,
+      deps,
+    );
     console.log("message processed", {
       items: items.length,
       unreadable: message.unreadable.length,
@@ -153,15 +181,25 @@ export class Household extends Agent<Env> {
     text: string,
     unreadable: Unreadable[],
     items: ExtractedItem[],
+    children: Child[],
+    childrenVersion: number,
     deps: Deps,
   ): void {
+    // The model names children; store their ids. With no children set up, everything is relevant.
+    const childIds = (names: string[]): string | null => {
+      if (children.length === 0) return null;
+      const wanted = new Set(names.map((n) => n.toLowerCase()));
+      return JSON.stringify(
+        children.filter((c) => wanted.has(c.name.toLowerCase())).map((c) => c.id),
+      );
+    };
     this.ctx.storage.transactionSync(() => {
       this.db.exec("DELETE FROM items WHERE message_id = ?", id);
       this.db.exec("DELETE FROM unreadable WHERE message_id = ?", id);
       items.forEach((item, index) => {
         this.db.exec(
-          `INSERT INTO items (id, message_id, date, time, kind, title, cost, location, school, child, confidence, expires_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          `INSERT INTO items (id, message_id, date, time, kind, title, cost, location, school, child, confidence, expires_at, child_ids)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           `${id}-${String(index)}`,
           id,
           item.date,
@@ -174,6 +212,7 @@ export class Household extends Agent<Env> {
           item.child,
           item.confidence,
           addDays(new Date(`${item.date}T00:00:00.000Z`), MAIL_DAYS).toISOString(),
+          childIds(item.forChildren ?? []),
         );
       });
       for (const file of unreadable) {
@@ -186,13 +225,14 @@ export class Household extends Agent<Env> {
       }
       this.db.exec(
         `UPDATE messages SET status = 'done', subject = ?, sent_at = ?, body_text = ?, processed_at = ?,
-           extraction_version = ?, attempts = 0
+           extraction_version = ?, children_version = ?, attempts = 0
          WHERE id = ?`,
         subject,
         sentAt,
         text,
         deps.clock.now().toISOString(),
         EXTRACTION_VERSION,
+        childrenVersion,
         id,
       );
     });
@@ -223,7 +263,7 @@ export class Household extends Agent<Env> {
   }
 
   /** Adds a child. `schoolYear` is the school year the year group applies to (see children.ts). */
-  addChild(id: string, input: ChildInput, schoolYear: number, now: string): void {
+  async addChild(id: string, input: ChildInput, schoolYear: number, now: string): Promise<void> {
     this.db.exec(
       `INSERT INTO children (id, name, school, year_group, year_group_as_of, class_name, created_at)
        VALUES (?, ?, ?, ?, ?, ?, ?)`,
@@ -235,11 +275,11 @@ export class Household extends Agent<Env> {
       input.className,
       now,
     );
-    this.childrenChanged();
+    await this.childrenChanged();
   }
 
   /** Replaces a child's details. Returns false if there's no such child. */
-  updateChild(id: string, input: ChildInput, schoolYear: number): boolean {
+  async updateChild(id: string, input: ChildInput, schoolYear: number): Promise<boolean> {
     const changed = this.db.exec(
       `UPDATE children SET name = ?, school = ?, year_group = ?, year_group_as_of = ?, class_name = ?
        WHERE id = ?`,
@@ -250,13 +290,13 @@ export class Household extends Agent<Env> {
       input.className,
       id,
     ).rowsWritten;
-    if (changed > 0) this.childrenChanged();
+    if (changed > 0) await this.childrenChanged();
     return changed > 0;
   }
 
-  removeChild(id: string): boolean {
+  async removeChild(id: string): Promise<boolean> {
     const removed = this.db.exec("DELETE FROM children WHERE id = ?", id).rowsWritten;
-    if (removed > 0) this.childrenChanged();
+    if (removed > 0) await this.childrenChanged();
     return removed > 0;
   }
 
@@ -269,11 +309,17 @@ export class Household extends Agent<Env> {
     );
   }
 
-  private childrenChanged(): void {
+  private async childrenChanged(): Promise<void> {
     this.db.exec(
       `INSERT INTO meta (key, value) VALUES ('children_version', 1)
        ON CONFLICT (key) DO UPDATE SET value = value + 1`,
     );
+    // Re-read stored mail for the new children. The delay lets a few quick edits share one run.
+    if (this.env.PROCESS_ON_RECEIVE !== "0") {
+      await this.schedule(REREAD_DELAY_SECONDS, "processScheduled", undefined, {
+        idempotent: true,
+      });
+    }
   }
 
   /** Adds a verified address to the household. Digests go to every member. */
@@ -338,6 +384,7 @@ export class Household extends Agent<Env> {
         child: string | null;
         confidence: StoredItem["confidence"];
         expires_at: string;
+        child_ids: string | null;
       }>("SELECT * FROM items ORDER BY date, time, id")
       .toArray()
       .map((i) => ({
@@ -353,6 +400,7 @@ export class Household extends Agent<Env> {
         child: i.child,
         confidence: i.confidence,
         expiresAt: i.expires_at,
+        childIds: i.child_ids === null ? null : (JSON.parse(i.child_ids) as string[]),
       }));
   }
 
@@ -430,10 +478,18 @@ export function migrate(sql: SqlStorage): void {
     ["processed_at", "TEXT"],
     // Messages processed before versioning count as version 1.
     ["extraction_version", "INTEGER NOT NULL DEFAULT 1"],
+    ["children_version", "INTEGER NOT NULL DEFAULT 0"],
   ];
   for (const [name, definition] of added) {
     if (!columns.has(name)) sql.exec(`ALTER TABLE messages ADD COLUMN ${name} ${definition}`);
   }
+  const itemColumns = new Set(
+    sql
+      .exec<{ name: string }>("SELECT name FROM pragma_table_info('items')")
+      .toArray()
+      .map((c) => c.name),
+  );
+  if (!itemColumns.has("child_ids")) sql.exec("ALTER TABLE items ADD COLUMN child_ids TEXT");
 }
 
 function errorName(error: unknown): string {

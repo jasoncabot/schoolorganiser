@@ -47,7 +47,15 @@ parent ──forward──▶ Email Routing (hello@school.jasoncabot.com)
 
 ## Extracted item
 
-`date` (YYYY-MM-DD), `time` (HH:MM or null), `kind` (event, deadline, payment, kit, timing, closure, other), `title`, `cost`, `location`, `school`, `child` (as written, e.g. "Year 3"), `confidence` (high/low), `message_id`, `expires_at` (90 days after `date`). Matching `school` and `child` to the household's children comes with the web page (plan step 8).
+`date` (YYYY-MM-DD), `time` (HH:MM or null), `kind` (event, deadline, payment, kit, timing, closure, other), `title`, `cost`, `location`, `school`, `child` (as written, e.g. "Year 3"), `confidence` (high/low), `message_id`, `expires_at` (90 days after `date`), `child_ids` (the household's children it applies to, decided by the model from the children in the prompt; null if the household had none set up).
+
+## Web
+
+- `/sign-in`, `/sign-in/confirm`, `/sign-out`: magic-link sign-in and a signed session cookie (`src/web/session.ts`).
+- `/household`: children and members; `/household/children/…` to add, change and remove children; `/household/members` to invite.
+- `/join`: accepting an invitation.
+- `/verify`: confirming an address (also signs in).
+- Every POST that changes anything checks the Origin header; every GET reached from an emailed link only shows a button.
 
 ## Implementation notes
 

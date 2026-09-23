@@ -56,6 +56,7 @@ describe("parseExtraction", () => {
         school: null,
         child: "Year 3",
         confidence: "high",
+        forChildren: [],
       },
     ]);
   });
@@ -80,5 +81,13 @@ describe("parseExtraction", () => {
   it("returns null for answers with no items list", () => {
     expect(parseExtraction({ response: "no" }, "2025-09-29T15:10:00.000Z")).toBeNull();
     expect(parseExtraction(null, "2025-09-29T15:10:00.000Z")).toBeNull();
+  });
+
+  it("keeps the children each item is for", () => {
+    const items = parseExtraction(
+      { response: { items: [{ ...item, for: ["Ada", " Ben ", "", 7] }] } },
+      "2025-09-29T15:10:00.000Z",
+    );
+    expect(items?.[0]?.forChildren).toEqual(["Ada", "Ben"]);
   });
 });
