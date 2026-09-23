@@ -93,16 +93,36 @@ describe("coming up", () => {
 });
 
 describe("source emails", () => {
-  it("shows the text we read from an email, and 404 for an unknown one", async () => {
+  it("shows what we found, the attachments and the text as formatted, and 404 for an unknown one", async () => {
     const { deps, cookie, stub } = await household("source", ["source@example.com"]);
+    const body = [
+      "Parents evening is on **Tuesday 14th October**.",
+      "",
+      "Attachment: club.docx",
+      "# club.docx",
+      "",
+      "- Judo on Wednesdays",
+      "- <b>£72</b>",
+    ].join("\n");
     await runInDurableObject(stub, (_instance: Household, state) => {
       state.storage.sql.exec(
-        "UPDATE messages SET body_text = 'Parents evening is on Tuesday 14th October.' WHERE id = 'm1'",
+        `UPDATE messages SET body_text = ?, forwarded_by = 'source@example.com',
+           attachments = '[{"filename":"club.docx","outcome":"read"},{"filename":"Menu.pdf","outcome":"missing"}]'
+         WHERE id = 'm1'`,
+        body,
       );
     });
     const page = await text(await go(request("/household/emails/m1", cookie), deps));
     expect(page).toContain("<h1>Fwd: Trip</h1>");
-    expect(page).toContain("Parents evening is on Tuesday 14th October.");
+    expect(page).toContain("Received Wed 8 Oct, 9am, from source@example.com");
+    expect(page).toContain("<li> Sun 12 Oct, Harvest festival </li>");
+    expect(page).toContain("<li> Fri 5 Dec, Christmas fair </li>");
+    expect(page).toContain('<li><a href="#section-1">club.docx</a>: read</li>');
+    expect(page).toContain("<li>Menu.pdf: not attached: the forward left it out.");
+    expect(page).toContain("Parents evening is on <strong>Tuesday 14th October</strong>.");
+    expect(page).toContain('<h3 id="section-1">Attachment: club.docx</h3>');
+    expect(page).toContain("<ul><li>Judo on Wednesdays</li><li>&lt;b&gt;£72&lt;/b&gt;</li></ul>");
+    expect(page).not.toContain("# club.docx");
 
     const other = await household("source-other", ["source-other@example.com"]);
     const missing = await go(request("/household/emails/nope", other.cookie), other.deps);

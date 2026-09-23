@@ -883,6 +883,24 @@ export class Household extends Agent<Env> {
       }));
   }
 
+  /** Everything about one stored email, for its page; null if it's gone. */
+  emailDetails(id: string): {
+    message: StoredMessage;
+    activity: Activity;
+    items: StoredItem[];
+    notes: StoredNote[];
+  } | null {
+    const message = this.message(id);
+    const activity = this.activity().find((a) => a.id === id);
+    if (message === null || activity === undefined) return null;
+    return {
+      message,
+      activity,
+      items: this.items().filter((i) => i.messageId === id),
+      notes: this.notes().filter((n) => n.messageId === id),
+    };
+  }
+
   /** One stored email, for showing where an item came from; null if it's gone. */
   message(id: string): StoredMessage | null {
     const row = this.db

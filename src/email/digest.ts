@@ -235,6 +235,7 @@ function audience(item: Audience, names: Map<string, string>): string | null {
   const sure = nameOf(item.childIds);
   if (sure.length > 0) return joinNames(sure);
   const maybe = nameOf(item.maybeChildIds).map((n) => `${n}'s`);
+  if (maybe.length === 0) return item.child;
   return `${item.child ?? "Some pupils"} (may be ${joinNames(maybe, "or")})`;
 }
 

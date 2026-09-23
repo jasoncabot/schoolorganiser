@@ -166,7 +166,38 @@
     @apply mb-6 list-disc pl-6;
   }
   .email-text {
-    @apply mb-8 rounded-md bg-panel p-4 break-words whitespace-pre-wrap;
+    @apply mb-8 rounded-md bg-panel p-4 break-words;
+    & h3,
+    & h4,
+    & h5,
+    & h6 {
+      @apply mt-6 mb-2 text-xl font-bold first:mt-0;
+    }
+    & p:last-child {
+      @apply mb-0;
+    }
+    & ul {
+      @apply mb-5 list-disc pl-6;
+    }
+    & ol {
+      @apply mb-5 list-decimal pl-6;
+    }
+    & blockquote {
+      @apply mb-5 border-l-4 border-rule pl-4;
+    }
+    & hr {
+      @apply my-6 border-rule;
+    }
+    & .table-wrap {
+      @apply mb-5 overflow-x-auto;
+    }
+    & table {
+      @apply w-full border-collapse text-left text-base;
+    }
+    & th,
+    & td {
+      @apply border-b border-rule py-1 pr-4 align-top;
+    }
   }
   .disclosure {
     @apply mt-12 mb-6;

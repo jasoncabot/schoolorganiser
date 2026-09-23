@@ -19,9 +19,11 @@ import {
 import { invitationEmail, sendEmail } from "../email/outbound";
 import { addDays } from "../retention";
 import { signToken } from "../tokens";
+import type { AttachmentOutcome } from "../extract/message";
 import { MAX_ATTEMPTS, PAGE_NOTE_DAYS, type Activity } from "../household";
 import { dayLabel, londonDate, ukDate, ukDateTime } from "../uk-time";
 import { html, page, type Html } from "./html";
+import { renderMarkdown } from "./markdown";
 import { clearSessionCookie, readSession, sameOrigin, type Session } from "./session";
 import { notAllowed, redirect } from "./sign-in";
 
@@ -275,17 +277,14 @@ async function invite(request: Request, env: Env, deps: Deps, session: Session):
   );
 }
 
-function activityRow(a: Activity): Html {
-  const plural = (n: number, word: string): string => `${String(n)} ${word}${n === 1 ? "" : "s"}`;
+const plural = (n: number, word: string): string => `${String(n)} ${word}${n === 1 ? "" : "s"}`;
+
+/** What happened to an email, as a tag and a sentence or two, for the activity log and email page. */
+function activityStatus(a: Activity): { tag: Html; detail: string; meta: string } {
   let tag: Html;
   let detail: string;
   if (a.status === "done") {
     tag = html`<span class="tag tag-done">Done</span>`;
-    const outcome = {
-      read: "read",
-      skipped: "skipped as a logo",
-      unreadable: "couldn't read",
-    };
     const attached = (a.attachments ?? []).filter((f) => f.outcome !== "missing");
     const missing = (a.attachments ?? []).filter((f) => f.outcome === "missing");
     const attachments =
@@ -293,7 +292,7 @@ function activityRow(a: Activity): Html {
         ? "Attachments weren't recorded when this was read."
         : attached.length === 0
           ? "No attachments."
-          : `${plural(attached.length, "attachment")}: ${attached.map((f) => `${f.filename} (${outcome[f.outcome as keyof typeof outcome]})`).join(", ")}.`;
+          : `${plural(attached.length, "attachment")}: ${attached.map((f) => `${f.filename} (${OUTCOME[f.outcome]})`).join(", ")}.`;
     detail = [
       `${plural(a.items, "item")} and ${plural(a.notes, "note")} found.`,
       attachments,
@@ -321,6 +320,18 @@ function activityRow(a: Activity): Html {
   ]
     .filter((p) => p !== null)
     .join(", ");
+  return { tag, detail, meta };
+}
+
+const OUTCOME: Record<AttachmentOutcome["outcome"], string> = {
+  read: "read",
+  skipped: "skipped as a logo",
+  unreadable: "couldn't read",
+  missing: "not attached",
+};
+
+function activityRow(a: Activity): Html {
+  const { tag, detail, meta } = activityStatus(a);
   return html`<li>
     <p class="mb-1">
       <a href="/household/emails/${a.id}">${a.subject ?? "Subject not read yet"}</a>
@@ -397,23 +408,133 @@ async function upcoming(env: Env, deps: Deps, session: Session): Promise<Respons
 /** One forwarded email as we read it, so a parent can check an item against its letter. */
 async function storedEmail(env: Env, session: Session, id: string): Promise<Response> {
   const household = await householdStub(env, session.householdId);
-  const message = await household.message(id);
-  if (message === null) return new Response("Not found", { status: 404 });
+  const email = await household.emailDetails(id);
+  if (email === null) return new Response("Not found", { status: 404 });
+  const { activity, message } = email;
+  const { tag, detail, meta } = activityStatus(activity);
+  const names = childNames(await household.children());
   const title = message.subject ?? "Forwarded email";
+  const read = (activity.attachments ?? []).filter((f) => f.outcome === "read");
+  const sections =
+    message.text === null
+      ? []
+      : splitSections(
+          message.text,
+          read.map((f) => f.filename),
+        );
+  const dated = email.items.map(
+    (i) =>
+      html`<li>
+        ${dayLabel(i.date)}, ${describeItem(i, names)}${forUs(i) ? "" : " (not for your children)"}
+      </li>`,
+  );
+  const notes = email.notes.map(
+    (n) => html`<li>${describeNote(n, names)}${forUs(n) ? "" : " (not for your children)"}</li>`,
+  );
+  const attachments = (activity.attachments ?? []).map((f) => {
+    const index = sections.findIndex((s) => s.title === f.filename);
+    const name =
+      index === -1
+        ? html`${f.filename}`
+        : html`<a href="#section-${String(index)}">${f.filename}</a>`;
+    const why =
+      f.outcome === "missing"
+        ? "not attached: the forward left it out. Forward the email again with its attachments."
+        : OUTCOME[f.outcome];
+    return html`<li>${name}: ${why}</li>`;
+  });
   return page(
     title,
-    html`<p><a href="/household/upcoming">Back</a></p>
+    html`<p><a href="/household">Back to your household</a></p>
       <h1>${title}</h1>
-      <p class="text-muted">
-        Received ${ukDate(new Date(message.receivedAt))}. This is the text we read, including
-        attachments.
-      </p>
+      <p class="mb-1 text-muted">${meta}</p>
+      <p>${tag} ${detail}</p>
+      <h2>What we found</h2>
       ${
-        message.text === null
-          ? html`<p>We couldn't read this email.</p>`
-          : html`<div class="email-text">${message.text}</div>`
+        dated.length === 0 && notes.length === 0
+          ? html`<p>No dates or notes worth knowing.</p>`
+          : html``
+      }
+      ${
+        dated.length === 0
+          ? html``
+          : html`<h3>Dates</h3>
+              <ul class="list">
+                ${dated}
+              </ul>`
+      }
+      ${
+        notes.length === 0
+          ? html``
+          : html`<h3>Worth knowing</h3>
+              <ul class="list">
+                ${notes}
+              </ul>`
+      }
+      ${
+        attachments.length === 0
+          ? html``
+          : html`<h2>Attachments</h2>
+              <ul class="list">
+                ${attachments}
+              </ul>`
+      }
+      <h2>The email as we read it</h2>
+      ${
+        sections.length === 0
+          ? html`<p>We haven't read this email yet, or couldn't.</p>`
+          : sections.map(
+              (s, index) =>
+                html`${s.title === null ? html`` : html`<h3 id="section-${String(index)}">Attachment: ${s.title}</h3>`}
+                  <div class="email-text">${renderMarkdown(s.text)}</div>`,
+            )
       }`,
   );
+}
+
+/** Whether an item or note is for the household's children, or might be. */
+function forUs(x: { childIds: string[] | null; maybeChildIds: string[] }): boolean {
+  return x.childIds === null || x.childIds.length > 0 || x.maybeChildIds.length > 0;
+}
+
+/**
+ * Splits the text we read into the body and one section per attachment. readMessage() starts
+ * each attachment's text with "Attachment: <filename>"; only files we read count, so a body
+ * line that happens to start that way isn't mistaken for one.
+ */
+export function splitSections(
+  text: string,
+  filenames: string[],
+): { title: string | null; text: string }[] {
+  const sections: { title: string | null; text: string }[] = [];
+  let current: { title: string | null; lines: string[] } = { title: null, lines: [] };
+  for (const line of text.split("\n")) {
+    const name = /^Attachment: (.+)$/.exec(line)?.[1];
+    if (name !== undefined && filenames.includes(name)) {
+      sections.push({ title: current.title, text: current.lines.join("\n") });
+      current = { title: name, lines: [] };
+    } else {
+      current.lines.push(line);
+    }
+  }
+  sections.push({ title: current.title, text: current.lines.join("\n") });
+  return sections
+    .map((s) => ({
+      title: s.title,
+      // toMarkdown starts a document with its filename as a heading; the section title says it.
+      text:
+        s.title === null
+          ? s.text.trim()
+          : s.text
+              .trim()
+              .replace(new RegExp(`^#\\s+${escapeRegExp(s.title)}\\s*\n?`), "")
+              .trim(),
+    }))
+    .filter((s) => s.title !== null || s.text !== "");
+}
+
+function escapeRegExp(text: string): string {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 /** GET asks for confirmation; POST deletes the household's data and forgets every member. */
