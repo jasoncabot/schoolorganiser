@@ -168,6 +168,33 @@
   .email-text {
     @apply mb-8 rounded-md bg-panel p-4 break-words whitespace-pre-wrap;
   }
+  .disclosure {
+    @apply mt-12 mb-6;
+    & summary {
+      @apply cursor-pointer font-display text-xl font-bold text-link;
+    }
+    & > *:not(summary) {
+      @apply mt-4;
+    }
+  }
+  .activity {
+    @apply border-t border-rule;
+    & li {
+      @apply border-b border-rule py-3;
+    }
+    & p:last-child {
+      @apply mb-0;
+    }
+  }
+  .tag {
+    @apply mr-1 inline-block rounded-sm border border-rule bg-panel px-2 text-sm font-bold text-ink;
+  }
+  .tag-done {
+    @apply border-success bg-success text-page;
+  }
+  .tag-failed {
+    @apply border-error bg-error text-page;
+  }
   .rule {
     @apply my-8 border-rule;
   }

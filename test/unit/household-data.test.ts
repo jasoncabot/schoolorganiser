@@ -98,6 +98,51 @@ describe("source emails", () => {
   });
 });
 
+describe("activity", () => {
+  it("lists every email, newest first, with what happened to it", async () => {
+    const { deps, cookie, stub } = await household("activity", ["activity@example.com"]);
+    await runInDurableObject(stub, (_instance: Household, state) => {
+      const sql = state.storage.sql;
+      sql.exec(
+        `UPDATE messages SET forwarded_by = 'activity@example.com', processed_at = '2025-10-08T08:01:00.000Z' WHERE id = 'm1'`,
+      );
+      sql.exec(
+        "INSERT INTO unreadable (message_id, filename, reason) VALUES ('m1', 'menu.ppt', 'unsupported format')",
+      );
+      sql.exec(
+        `INSERT INTO messages (id, r2_key, received_at, expires_at, status, attempts, last_error)
+         VALUES ('m2', 'k2', '2025-10-09T13:05:00.000Z', '2026-01-07T13:05:00.000Z', 'failed', 3, 'UnusableExtraction')`,
+      );
+      sql.exec(
+        `INSERT INTO messages (id, r2_key, received_at, expires_at, status, attempts, last_error)
+         VALUES ('m3', 'k3', '2025-10-10T08:00:00.000Z', '2026-01-08T08:00:00.000Z', 'new', 1, 'AiError')`,
+      );
+    });
+    const page = await text(await go(request("/household", cookie), deps));
+    const section = page.slice(page.indexOf("<details"), page.indexOf("</details>"));
+    expect(section).toContain("<summary>Activity</summary>");
+    expect(section.indexOf("/household/emails/m3")).toBeLessThan(
+      section.indexOf("/household/emails/m2"),
+    );
+    expect(section.indexOf("/household/emails/m2")).toBeLessThan(
+      section.indexOf("/household/emails/m1"),
+    );
+    expect(section).toContain(
+      "Received Wed 8 Oct, 9am, from activity@example.com, read Wed 8 Oct, 9:01am",
+    );
+    expect(section).toContain(
+      '<span class="tag tag-done">Done</span> 3 items found. Couldn&#39;t read menu.ppt.',
+    );
+    expect(section).toContain("Received Thu 9 Oct, 2:05pm");
+    expect(section).toContain(
+      '<span class="tag tag-failed">Failed</span> Gave up after 3 attempts: UnusableExtraction.',
+    );
+    expect(section).toContain(
+      '<span class="tag">Retrying</span> Attempt 1 of 3 failed: AiError. We&#39;ll try again within 5 minutes.',
+    );
+  });
+});
+
 describe("weekly email", () => {
   it("stops and starts again for the signed-in member", async () => {
     const address = "toggle@example.com";

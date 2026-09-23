@@ -30,7 +30,7 @@ We use it only to provide the service you signed up for:
 - **The emails and attachments you forward.** This can include the names of your children, their school and class, and anything else the school has written.
 - **What we extract from those emails**, such as event dates, costs and locations.
 - **The children you add** on the web page: a name (a nickname is fine), their school, year group and class. We use these only to work out which parts of a letter apply to your children.
-- **Service records** such as when an email arrived, whether it was processed and whether you've stopped the weekly email. These are used to keep the service running and to fix problems.
+- **Service records** such as when an email arrived, who in your household forwarded it, whether it was processed (and why not, if it failed) and whether you've stopped the weekly email. These are used to keep the service running and to fix problems.
 
 ## How long we keep it
 

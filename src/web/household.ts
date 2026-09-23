@@ -13,7 +13,8 @@ import { childNames, describeItem, relevantItems } from "../email/digest";
 import { invitationEmail, sendEmail } from "../email/outbound";
 import { addDays } from "../retention";
 import { signToken } from "../tokens";
-import { dayLabel, londonDate, ukDate } from "../uk-time";
+import { MAX_ATTEMPTS, type Activity } from "../household";
+import { dayLabel, londonDate, ukDate, ukDateTime } from "../uk-time";
 import { html, page, type Html } from "./html";
 import { clearSessionCookie, readSession, sameOrigin, type Session } from "./session";
 import { notAllowed, redirect } from "./sign-in";
@@ -123,7 +124,11 @@ export async function householdRoutes(request: Request, env: Env, deps: Deps): P
 
 async function overview(env: Env, deps: Deps, session: Session, notice?: Html): Promise<Response> {
   const household = await householdStub(env, session.householdId);
-  const [children, members] = await Promise.all([household.children(), household.members()]);
+  const [children, members, activity] = await Promise.all([
+    household.children(),
+    household.members(),
+    household.activity(),
+  ]);
   const now = deps.clock.now();
   const childRows = children.map(
     (c) =>
@@ -191,6 +196,19 @@ async function overview(env: Env, deps: Deps, session: Session, notice?: Html): 
       </form>
       <h2>Your weekly email</h2>
       ${digestToggle}
+      <details class="disclosure">
+        <summary>Activity</summary>
+        <p class="hint">
+          Every email forwarded in the last 90 days, newest first, and what happened to it.
+        </p>
+        ${
+          activity.length === 0
+            ? html`<p>No emails yet.</p>`
+            : html`<ol class="activity">
+                ${activity.map(activityRow)}
+              </ol>`
+        }
+      </details>
       <h2>Your data</h2>
       <ul class="list">
         ${leaveLink}
@@ -249,6 +267,45 @@ async function invite(request: Request, env: Env, deps: Deps, session: Session):
       <p>We've emailed ${address} a link to join. It works for ${String(INVITE_DAYS)} days.</p>
     </div>`,
   );
+}
+
+function activityRow(a: Activity): Html {
+  const plural = (n: number, word: string): string => `${String(n)} ${word}${n === 1 ? "" : "s"}`;
+  let tag: Html;
+  let detail: string;
+  if (a.status === "done") {
+    tag = html`<span class="tag tag-done">Done</span>`;
+    detail = [
+      `${plural(a.items, "item")} found.`,
+      a.unreadable.length > 0 ? `Couldn't read ${a.unreadable.join(", ")}.` : "",
+      a.rereading ? "Reading again after a change." : "",
+    ]
+      .filter((p) => p !== "")
+      .join(" ");
+  } else if (a.status === "failed") {
+    tag = html`<span class="tag tag-failed">Failed</span>`;
+    detail = `Gave up${a.attempts > 0 ? ` after ${plural(a.attempts, "attempt")}` : ""}: ${a.lastError ?? "unknown error"}.`;
+  } else if (a.attempts > 0) {
+    tag = html`<span class="tag">Retrying</span>`;
+    detail = `Attempt ${String(a.attempts)} of ${String(MAX_ATTEMPTS)} failed: ${a.lastError ?? "unknown error"}. We'll try again within 5 minutes.`;
+  } else {
+    tag = html`<span class="tag">Received</span>`;
+    detail = "Waiting to be read.";
+  }
+  const meta = [
+    `Received ${ukDateTime(new Date(a.receivedAt))}`,
+    a.forwardedBy === null ? null : `from ${a.forwardedBy}`,
+    a.processedAt === null ? null : `read ${ukDateTime(new Date(a.processedAt))}`,
+  ]
+    .filter((p) => p !== null)
+    .join(", ");
+  return html`<li>
+    <p class="mb-1">
+      <a href="/household/emails/${a.id}">${a.subject ?? "Subject not read yet"}</a>
+    </p>
+    <p class="mb-1 text-muted">${meta}</p>
+    <p>${tag} ${detail}</p>
+  </li>`;
 }
 
 /** Every relevant item from today on, grouped by day. */

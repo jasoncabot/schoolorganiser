@@ -25,6 +25,24 @@ export interface ReceivedMail {
   key: string;
   receivedAt: string;
   expiresAt: string;
+  /** The member who forwarded it. */
+  forwardedBy?: string;
+}
+
+/** One forwarded email and what happened to it, for the household's activity log. */
+export interface Activity {
+  id: string;
+  receivedAt: string;
+  forwardedBy: string | null;
+  subject: string | null;
+  status: MessageStatus;
+  attempts: number;
+  processedAt: string | null;
+  /** Read with an older extraction or older children, so it will be read again. */
+  rereading: boolean;
+  lastError: string | null;
+  items: number;
+  unreadable: string[];
 }
 
 export type MessageStatus = "new" | "done" | "failed";
@@ -82,11 +100,12 @@ export class Household extends Agent<Env> {
   /** Records a message stored in R2 for this household and queues it for processing. */
   async receive(mail: ReceivedMail): Promise<void> {
     this.db.exec(
-      "INSERT OR IGNORE INTO messages (id, r2_key, received_at, expires_at) VALUES (?, ?, ?, ?)",
+      "INSERT OR IGNORE INTO messages (id, r2_key, received_at, expires_at, forwarded_by) VALUES (?, ?, ?, ?, ?)",
       mail.id,
       mail.key,
       mail.receivedAt,
       mail.expiresAt,
+      mail.forwardedBy ?? null,
     );
     await this.armPurge();
     if (this.env.SCHEDULED_WORK !== "0") {
@@ -124,9 +143,10 @@ export class Household extends Agent<Env> {
         const attempts = message.attempts + 1;
         const status: MessageStatus = attempts >= MAX_ATTEMPTS ? "failed" : "new";
         this.db.exec(
-          "UPDATE messages SET attempts = ?, status = ? WHERE id = ?",
+          "UPDATE messages SET attempts = ?, status = ?, last_error = ? WHERE id = ?",
           attempts,
           status,
+          errorName(error),
           message.id,
         );
         retry ||= status === "new";
@@ -380,7 +400,10 @@ export class Household extends Agent<Env> {
   ): Promise<void> {
     const object = await this.env.MAIL.get(key);
     if (object === null) {
-      this.db.exec("UPDATE messages SET status = 'failed' WHERE id = ?", id);
+      this.db.exec(
+        "UPDATE messages SET status = 'failed', last_error = 'Original email missing' WHERE id = ?",
+        id,
+      );
       return;
     }
     const message = await readMessage(
@@ -481,7 +504,7 @@ export class Household extends Agent<Env> {
       }
       this.db.exec(
         `UPDATE messages SET status = 'done', subject = ?, sent_at = ?, body_text = ?, processed_at = ?,
-           extraction_version = ?, children_version = ?, attempts = 0
+           extraction_version = ?, children_version = ?, attempts = 0, last_error = NULL
          WHERE id = ?`,
         read.subject,
         read.sentAt,
@@ -670,6 +693,50 @@ export class Household extends Agent<Env> {
           i.maybe_child_ids === null ? [] : (JSON.parse(i.maybe_child_ids) as string[]),
         dateUnsure: i.date_unsure === 1,
         source: i.received_at === null ? null : { subject: i.subject, receivedAt: i.received_at },
+      }));
+  }
+
+  /** Every stored email, newest first, with what happened to it. */
+  activity(): Activity[] {
+    const unreadable = new Map<string, string[]>();
+    for (const u of this.unreadable()) {
+      unreadable.set(u.messageId, [...(unreadable.get(u.messageId) ?? []), u.filename]);
+    }
+    const childrenVersion = this.childrenVersion();
+    return this.db
+      .exec<{
+        id: string;
+        received_at: string;
+        forwarded_by: string | null;
+        subject: string | null;
+        status: MessageStatus;
+        attempts: number;
+        processed_at: string | null;
+        extraction_version: number;
+        children_version: number;
+        last_error: string | null;
+        items: number;
+      }>(
+        `SELECT m.id, m.received_at, m.forwarded_by, m.subject, m.status, m.attempts,
+                m.processed_at, m.extraction_version, m.children_version, m.last_error,
+                (SELECT COUNT(*) FROM items i WHERE i.message_id = m.id) AS items
+         FROM messages m ORDER BY m.received_at DESC, m.id DESC`,
+      )
+      .toArray()
+      .map((m) => ({
+        id: m.id,
+        receivedAt: m.received_at,
+        forwardedBy: m.forwarded_by,
+        subject: m.subject,
+        status: m.status,
+        attempts: m.attempts,
+        processedAt: m.processed_at,
+        rereading:
+          m.status === "done" &&
+          (m.extraction_version < EXTRACTION_VERSION || m.children_version < childrenVersion),
+        lastError: m.last_error,
+        items: m.items,
+        unreadable: unreadable.get(m.id) ?? [],
       }));
   }
 

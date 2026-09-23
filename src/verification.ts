@@ -106,6 +106,7 @@ export async function joinHousehold(
         key,
         receivedAt: held.receivedAt,
         expiresAt: addDays(new Date(held.receivedAt), MAIL_DAYS).toISOString(),
+        forwardedBy: address,
       });
       await env.MAIL.delete(held.key);
     }

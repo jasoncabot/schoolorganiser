@@ -59,6 +59,8 @@ export function migrate(sql: SqlStorage): void {
     extraction_version: "INTEGER NOT NULL DEFAULT 1",
     children_version: "INTEGER NOT NULL DEFAULT 0",
     failure_mentioned_at: "TEXT",
+    forwarded_by: "TEXT",
+    last_error: "TEXT",
   });
   addMissingColumns(sql, "items", {
     child_ids: "TEXT",

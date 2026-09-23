@@ -70,6 +70,13 @@ export function ukDate(date: Date): string {
   return dayLabel(londonDate(date));
 }
 
+/** "Wed 8 Oct, 2:05pm" for an instant, in UK time. */
+export function ukDateTime(date: Date): string {
+  const { hour, minute } = londonParts(date);
+  const hhmm = `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+  return `${ukDate(date)}, ${ukTime(hhmm)}`;
+}
+
 /** "9am", "8:15am", "2:30pm" from "HH:MM". */
 export function ukTime(time: string): string {
   const [h = 0, m = 0] = time.split(":").map(Number);

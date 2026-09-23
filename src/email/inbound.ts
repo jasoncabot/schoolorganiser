@@ -72,6 +72,7 @@ async function storeForwardedMail(
       key,
       receivedAt: now.toISOString(),
       expiresAt: addDays(now, MAIL_DAYS).toISOString(),
+      forwardedBy: sender,
     });
     return "stored";
   }
