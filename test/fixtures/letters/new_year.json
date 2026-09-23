@@ -1,0 +1,25 @@
+{
+  "sentAt": "2025-12-12T10:00:00.000Z",
+  "subject": "Spring term dates and residential deposit",
+  "text": "Riverside Juniors\n\nSchool returns for the spring term on Tuesday 6th January.\n\nYear 6 residential to Kingswood (2nd–4th March): a deposit of £50 is due by Friday 16th January. The remaining £180 is due by Friday 13th February.",
+  "expected": [
+    {
+      "date": "2026-01-06",
+      "kind": "other"
+    },
+    {
+      "date": "2026-03-02",
+      "kind": "event"
+    },
+    {
+      "date": "2026-01-16",
+      "kind": "payment",
+      "cost": "£50"
+    },
+    {
+      "date": "2026-02-13",
+      "kind": "payment",
+      "cost": "£180"
+    }
+  ]
+}

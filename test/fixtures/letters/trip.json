@@ -1,0 +1,20 @@
+{
+  "sentAt": "2025-09-29T15:10:00.000Z",
+  "subject": "Year 3 trip to Chester Zoo",
+  "text": "Dear Parents and Carers,\n\nOakfield Primary School\n\nAs part of our science topic on habitats, Year 3 will be visiting Chester Zoo on Thursday 16th October. The coach will leave school promptly at 8.15am, so please make sure your child arrives by 8am. We expect to return at approximately 4.30pm.\n\nThe cost of the trip is £18.50, which covers the coach and entry. Please pay via ParentPay by Friday 10th October and return the attached consent form by the same date.\n\nChildren will need a packed lunch, a named water bottle and a waterproof coat.\n\nKind regards,\nMrs A. Example\nYear 3 Teacher",
+  "expected": [
+    {
+      "date": "2025-10-16",
+      "kind": "event"
+    },
+    {
+      "date": "2025-10-10",
+      "kind": "payment",
+      "cost": "£18.50"
+    },
+    {
+      "date": "2025-10-10",
+      "kind": "deadline"
+    }
+  ]
+}

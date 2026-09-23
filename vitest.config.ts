@@ -16,7 +16,10 @@ export default defineConfig({
             scriptPath: "./test/stubs/dist/index.js",
             compatibilityDate: "2026-09-21",
             compatibilityFlags: ["nodejs_compat"],
-            durableObjects: { OUTBOX: { className: "Outbox", useSQLite: true } },
+            durableObjects: {
+              OUTBOX: { className: "Outbox", useSQLite: true },
+              FIXTURES: { className: "Fixtures", useSQLite: true },
+            },
           },
         ],
       },

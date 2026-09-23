@@ -3,8 +3,8 @@
   "compilerOptions": {
     "target": "es2024",
     "lib": ["es2024", "dom"],
-    "module": "nodenext",
-    "moduleResolution": "nodenext",
+    "module": "esnext",
+    "moduleResolution": "bundler",
     "types": ["node"],
     "allowJs": true,
     "strict": true,
@@ -14,5 +14,12 @@
     "skipLibCheck": true,
     "noEmit": true
   },
-  "include": ["*.ts", "*.js", "scripts", "test/e2e", "test/global-setup.ts"]
+  "include": [
+    "vitest.config.ts",
+    "playwright.config.ts",
+    "eslint.config.js",
+    "scripts",
+    "test/e2e",
+    "test/global-setup.ts"
+  ]
 }

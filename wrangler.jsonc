@@ -15,6 +15,7 @@
   "vars": {
     "APP_ORIGIN": "https://school.jasoncabot.com",
     "SENDER_ADDRESS": "no-reply@school.jasoncabot.com",
+    "PROCESS_ON_RECEIVE": "1",
   },
   "secrets": { "required": ["SIGNING_KEY", "PRIVACY_FORWARD_TO"] },
   "ai": { "binding": "AI" },

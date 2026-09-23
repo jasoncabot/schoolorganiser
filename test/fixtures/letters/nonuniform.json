@@ -1,0 +1,15 @@
+{
+  "sentAt": "2025-11-07T16:00:00.000Z",
+  "subject": "Children in Need – non-uniform day",
+  "text": "Friday 14th November is Children in Need. Children may come to school in non-uniform or spotty clothes in exchange for a £1 donation, which can be brought in on the day.\n\nThe School Council will also be running a cake sale at 3.15pm on the playground. Cakes 50p each.",
+  "expected": [
+    {
+      "date": "2025-11-14",
+      "kind": "kit"
+    },
+    {
+      "date": "2025-11-14",
+      "kind": "event"
+    }
+  ]
+}

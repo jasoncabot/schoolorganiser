@@ -1,0 +1,19 @@
+{
+  "sentAt": "2025-10-08T09:00:00.000Z",
+  "subject": "Parents' evening bookings now open",
+  "text": "Parents' evenings will take place on Tuesday 4th and Wednesday 5th November from 3.30pm to 6.30pm in the school hall.\n\nPlease book a 10-minute appointment with your child's teacher through the school app by Friday 31st October. Bookings close at midnight.",
+  "expected": [
+    {
+      "date": "2025-11-04",
+      "kind": "event"
+    },
+    {
+      "date": "2025-11-05",
+      "kind": "event"
+    },
+    {
+      "date": "2025-10-31",
+      "kind": "deadline"
+    }
+  ]
+}

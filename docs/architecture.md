@@ -37,9 +37,17 @@ parent ──forward──▶ Email Routing (hello@school.jasoncabot.com)
 - **Retention:** there's no daily clean-up job. Each row stores an `expires_at`: 90 days after receipt for message text, and 90 days after the item's date for items. The Household Agent keeps a single purge schedule (a Durable Object alarm, via `this.schedule(date)`), set to the earliest `expires_at`. When it fires, it deletes everything that has expired, then re-arms for the next earliest expiry, or sets nothing if the household is empty. Writing a new row only moves the schedule earlier, never later. Expiry times are rounded up to the next day so nearby rows share one wake-up. A quiet household wakes only when something is actually due to be deleted. R2 lifecycle rules handle the originals.
 - **Workers Secrets:** holds the HMAC key for verification and magic links, and `PRIVACY_FORWARD_TO`. Nothing secret goes in the repo.
 
-## Extracted item (proposed shape)
+## Processing
 
-`date`, `time?`, `kind` (event, deadline, payment, kit, early start/late finish, closure, other), `title`, `cost?`, `location?`, `school`, `child?`, `source_message_id`, `confidence`.
+1. `Household.receive()` records the message (status `new`) and schedules `processScheduled` (Agents SDK `schedule`, idempotent).
+2. `processPending()` takes each `new` message: it reads the `.eml` from R2 and parses it with `postal-mime` (`src/extract/message.ts`).
+3. The body is used as text; an HTML-only body goes through toMarkdown. Attachments: PDF, Word, Excel, images and HTML go through toMarkdown; PPTX is unzipped with `fflate` (`src/extract/pptx.ts`); `.txt` and `.ics` are read as text; anything else is recorded in `unreadable`.
+4. One Workers AI call (`src/extract/prompt.ts`, JSON mode) returns items. `src/extract/parse.ts` checks every field and drops items that don't make sense.
+5. Items, unreadable files and the extracted text are stored in one transaction, and the message becomes `done`.
+
+## Extracted item
+
+`date` (YYYY-MM-DD), `time` (HH:MM or null), `kind` (event, deadline, payment, kit, timing, closure, other), `title`, `cost`, `location`, `school`, `child` (as written, e.g. "Year 3"), `confidence` (high/low), `message_id`, `expires_at` (90 days after `date`). Matching `school` and `child` to the household's children comes with the web page (plan step 8).
 
 ## Implementation notes
 

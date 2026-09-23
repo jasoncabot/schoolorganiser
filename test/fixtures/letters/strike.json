@@ -1,0 +1,11 @@
+{
+  "sentAt": "2026-02-20T17:45:00.000Z",
+  "subject": "Planned strike action",
+  "text": "Following notice of national strike action, the school will be closed to all pupils except Year 6 on Wednesday 4 March. Year 6 pupils should arrive at the usual time. Breakfast club will not run that day.",
+  "expected": [
+    {
+      "date": "2026-03-04",
+      "kind": "closure"
+    }
+  ]
+}

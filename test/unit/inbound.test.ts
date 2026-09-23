@@ -126,7 +126,15 @@ describe("hello@", () => {
     expect(await r2Text(key)).toContain(`Letter for ${sender}`);
     const household = await householdStub(env, "household-verified-test");
     expect(await household.messages()).toEqual([
-      { id, key, receivedAt: "2025-10-06T08:00:00.000Z", expiresAt: "2026-01-04T08:00:00.000Z" },
+      {
+        id,
+        key,
+        receivedAt: "2025-10-06T08:00:00.000Z",
+        expiresAt: "2026-01-04T08:00:00.000Z",
+        status: "new",
+        subject: null,
+        attempts: 0,
+      },
     ]);
   });
 

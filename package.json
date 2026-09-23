@@ -21,7 +21,8 @@
     "check:ci": "npm run types -- --check && npm run lint && npm run test:shuffle",
     "check": "npm run check:ci && npm run test:e2e",
     "dev": "wrangler dev",
-    "deploy": "wrangler deploy"
+    "deploy": "wrangler deploy",
+    "eval:extraction": "esbuild scripts/eval-extraction.ts --bundle --platform=node --format=esm --outfile=.wrangler/eval-extraction.mjs --log-level=warning && node .wrangler/eval-extraction.mjs"
   },
   "dependencies": {
     "agents": "^0.24.0",
@@ -36,6 +37,7 @@
     "@tailwindcss/cli": "^4.3.3",
     "@types/node": "^26.6.2",
     "@vitest/coverage-istanbul": "~4.1.11",
+    "esbuild": "^0.28.2",
     "eslint": "^10.11.0",
     "eslint-config-prettier": "^10.1.8",
     "marked": "^18.0.14",

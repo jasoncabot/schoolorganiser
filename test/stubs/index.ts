@@ -8,20 +8,30 @@ import { canonicalJson, sha256Hex } from "./hash";
 
 interface StubEnv {
   OUTBOX: DurableObjectNamespace<Outbox>;
+  FIXTURES: DurableObjectNamespace<Fixtures>;
 }
 
 const ai: Record<string, unknown> = aiFixtures;
 const markdown: Record<string, string> = markdownFixtures;
 
+/** Key for an AI request: the same model and inputs always give the same key. */
+export function aiKey(model: string, inputs: Record<string, unknown>): Promise<string> {
+  return sha256Hex(canonicalJson({ model, inputs }));
+}
+
 export class AiStub extends WorkerEntrypoint<StubEnv> {
+  private get fixtures(): DurableObjectStub<Fixtures> {
+    return this.env.FIXTURES.getByName("fixtures");
+  }
+
   async run(model: string, inputs: Record<string, unknown>): Promise<unknown> {
-    const key = await sha256Hex(canonicalJson({ model, inputs }));
-    if (!(key in ai)) {
-      throw new Error(
-        `No AI fixture for ${model} (key ${key}). Record one in test/fixtures/ai.json.`,
-      );
-    }
-    return ai[key];
+    const key = await aiKey(model, inputs);
+    const registered = await this.fixtures.get(`ai:${key}`);
+    if (registered !== null) return JSON.parse(registered) as unknown;
+    if (key in ai) return ai[key];
+    throw new Error(
+      `No AI fixture for ${model} (key ${key}). Register one in the test or record it in test/fixtures/ai.json.`,
+    );
   }
 
   async toMarkdown(
@@ -29,10 +39,10 @@ export class AiStub extends WorkerEntrypoint<StubEnv> {
   ): Promise<ConversionResponse | ConversionResponse[]> {
     const convert = async (file: MarkdownDocument): Promise<ConversionResponse> => {
       const key = await sha256Hex(new Uint8Array(await file.blob.arrayBuffer()));
-      const data = markdown[key];
+      const data = (await this.fixtures.get(`markdown:${key}`)) ?? markdown[key];
       if (data === undefined) {
         throw new Error(
-          `No markdown fixture for ${file.name} (key ${key}). Record one in test/fixtures/markdown.json.`,
+          `No markdown fixture for ${file.name} (key ${key}). Register one in the test or record it in test/fixtures/markdown.json.`,
         );
       }
       return {
@@ -45,6 +55,43 @@ export class AiStub extends WorkerEntrypoint<StubEnv> {
       };
     };
     return Array.isArray(files) ? Promise.all(files.map(convert)) : convert(files);
+  }
+
+  /** Test-only: what run(model, inputs) should return. */
+  async registerRun(
+    model: string,
+    inputs: Record<string, unknown>,
+    output: unknown,
+  ): Promise<void> {
+    await this.fixtures.set(`ai:${await aiKey(model, inputs)}`, JSON.stringify(output));
+  }
+
+  /** Test-only: what toMarkdown should return for a file with these bytes. */
+  async registerMarkdown(bytes: Uint8Array, data: string): Promise<void> {
+    await this.fixtures.set(`markdown:${await sha256Hex(bytes)}`, data);
+  }
+}
+
+/** Fixtures registered by tests at runtime. Keys are content hashes, so tests can't collide. */
+export class Fixtures extends DurableObject<StubEnv> {
+  private readonly sql = this.ctx.storage.sql;
+
+  constructor(ctx: DurableObjectState, env: StubEnv) {
+    super(ctx, env);
+    this.sql.exec(
+      "CREATE TABLE IF NOT EXISTS fixtures (key TEXT PRIMARY KEY, value TEXT NOT NULL)",
+    );
+  }
+
+  get(key: string): string | null {
+    return (
+      this.sql.exec<{ value: string }>("SELECT value FROM fixtures WHERE key = ?", key).toArray()[0]
+        ?.value ?? null
+    );
+  }
+
+  set(key: string, value: string): void {
+    this.sql.exec("INSERT OR REPLACE INTO fixtures (key, value) VALUES (?, ?)", key, value);
   }
 }
 

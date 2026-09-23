@@ -1,0 +1,11 @@
+{
+  "sentAt": "2025-09-05T08:30:00.000Z",
+  "subject": "PE days this term",
+  "text": "Dear Oak Class families,\n\nOur PE days this term are Tuesdays and Thursdays. Please send your child to school in their PE kit on those days.\n\nSwimming lessons start on Wednesday 17 September. Children will need a swimming costume, towel and goggles in a named bag.\n\nThanks,\nMr B. Sample",
+  "expected": [
+    {
+      "date": "2025-09-17",
+      "kind": "kit"
+    }
+  ]
+}

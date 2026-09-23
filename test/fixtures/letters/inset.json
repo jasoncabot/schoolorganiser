@@ -1,0 +1,15 @@
+{
+  "sentAt": "2025-10-01T12:00:00.000Z",
+  "subject": "Newsletter – INSET day and early finish",
+  "text": "Hillside Academy Newsletter\n\nA reminder that school will be closed to pupils on Monday 3rd November for staff training (INSET day).\n\nOn Friday 24th October, the last day of half term, school will finish at 1.30pm. Buses will run at the earlier time.\n\nOur harvest festival collection continues all week – thank you for your donations.",
+  "expected": [
+    {
+      "date": "2025-11-03",
+      "kind": "closure"
+    },
+    {
+      "date": "2025-10-24",
+      "kind": "timing"
+    }
+  ]
+}
