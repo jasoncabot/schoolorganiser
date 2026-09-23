@@ -3,7 +3,12 @@ import { systemDeps, type Deps } from "./deps";
 import { runModel } from "./extract/ai";
 import { readMessage, type Unreadable } from "./extract/message";
 import { parseExtraction } from "./extract/parse";
-import { EXTRACTION_MODEL, extractionRequest, type ExtractedItem } from "./extract/prompt";
+import {
+  EXTRACTION_MODEL,
+  EXTRACTION_VERSION,
+  extractionRequest,
+  type ExtractedItem,
+} from "./extract/prompt";
 import { addDays, MAIL_DAYS } from "./retention";
 
 export interface ReceivedMail {
@@ -70,7 +75,10 @@ export class Household extends Agent<Env> {
   async processPending(deps: Deps): Promise<{ processed: number; retry: boolean }> {
     const waiting = this.db
       .exec<{ id: string; r2_key: string; received_at: string; attempts: number }>(
-        "SELECT id, r2_key, received_at, attempts FROM messages WHERE status = 'new' ORDER BY received_at, id",
+        `SELECT id, r2_key, received_at, attempts FROM messages
+         WHERE status = 'new' OR (status = 'done' AND extraction_version < ?)
+         ORDER BY received_at, id`,
+        EXTRACTION_VERSION,
       )
       .toArray();
     let retry = false;
@@ -114,7 +122,7 @@ export class Household extends Agent<Env> {
         EXTRACTION_MODEL,
         extractionRequest({ sentAt, subject: message.subject, text: message.text }),
       );
-      const parsed = parseExtraction(result);
+      const parsed = parseExtraction(result, sentAt);
       if (parsed === null) throw new Error("UnusableExtraction");
       items = parsed;
     }
@@ -165,12 +173,14 @@ export class Household extends Agent<Env> {
         );
       }
       this.db.exec(
-        `UPDATE messages SET status = 'done', subject = ?, sent_at = ?, body_text = ?, processed_at = ?
+        `UPDATE messages SET status = 'done', subject = ?, sent_at = ?, body_text = ?, processed_at = ?,
+           extraction_version = ?, attempts = 0
          WHERE id = ?`,
         subject,
         sentAt,
         text,
         deps.clock.now().toISOString(),
+        EXTRACTION_VERSION,
         id,
       );
     });
@@ -315,6 +325,8 @@ export function migrate(sql: SqlStorage): void {
     ["sent_at", "TEXT"],
     ["body_text", "TEXT"],
     ["processed_at", "TEXT"],
+    // Messages processed before versioning count as version 1.
+    ["extraction_version", "INTEGER NOT NULL DEFAULT 1"],
   ];
   for (const [name, definition] of added) {
     if (!columns.has(name)) sql.exec(`ALTER TABLE messages ADD COLUMN ${name} ${definition}`);

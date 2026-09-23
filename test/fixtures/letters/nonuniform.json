@@ -9,7 +9,7 @@
     },
     {
       "date": "2025-11-14",
-      "kind": "event"
+      "kind": ["event", "payment"]
     }
   ]
 }

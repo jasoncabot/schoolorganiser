@@ -8,6 +8,14 @@
  */
 export const EXTRACTION_MODEL = "@cf/mistralai/mistral-small-3.1-24b-instruct";
 
+/**
+ * Bump when reading or extraction changes in a way worth re-running on stored mail (prompt,
+ * model, PDF layout). Messages processed by an older version are re-read the next time the
+ * household processes mail. History: 1 first release; 2 unpdf column layout, code-resolved
+ * years, larger answers.
+ */
+export const EXTRACTION_VERSION = 2;
+
 export const ITEM_KINDS = [
   "event",
   "deadline",
@@ -35,6 +43,8 @@ export interface ExtractedItem {
 
 /** Longest email text (subject, body and attachments together) we send to the model. */
 export const MAX_INPUT_CHARS = 40_000;
+/** Room for a full-year calendar (~75 items) in one answer. */
+export const MAX_OUTPUT_TOKENS = 8192;
 
 export const EXTRACTION_SCHEMA = {
   type: "object",
@@ -44,7 +54,9 @@ export const EXTRACTION_SCHEMA = {
       items: {
         type: "object",
         properties: {
-          date: { type: "string", description: "YYYY-MM-DD" },
+          day: { type: "integer", minimum: 1, maximum: 31 },
+          month: { type: "integer", minimum: 1, maximum: 12 },
+          year: { type: ["integer", "null"], description: "Only if the letter states the year" },
           time: { type: ["string", "null"], description: "HH:MM, 24-hour" },
           kind: { type: "string", enum: [...ITEM_KINDS] },
           title: { type: "string" },
@@ -55,7 +67,9 @@ export const EXTRACTION_SCHEMA = {
           confidence: { type: "string", enum: ["high", "low"] },
         },
         required: [
-          "date",
+          "day",
+          "month",
+          "year",
           "time",
           "kind",
           "title",
@@ -83,10 +97,12 @@ Return JSON: {"items": [...]}. One item per thing that happens or is due on a sp
 - other: anything else dated that a parent must act on
 
 Rules:
-- Only include items with a date you can work out. Skip anything undated.
+- Only include items with a specific day and month. Skip anything undated.
 - Skip regular weekly routines (e.g. "PE is every Tuesday"): they have no single date. Only include a routine if it starts, stops or changes on a specific date, and then only for that date.
-- Dates are UK style. Work out the year from the date the email was sent: a date that has already passed that year means next year.
-- "date" is YYYY-MM-DD. "time" is HH:MM in 24-hour time, or null.
+- Dates are UK style (day before month). Give "day" and "month" as numbers. Give "year" only if the letter states it for that date (e.g. "07/09/26" is 2026), otherwise null; never work the year out yourself.
+- In calendars and tables, a month heading applies to every date listed under it.
+- For a range (e.g. "5th-9th October"), use the first day and say it's a range in the title.
+- "time" is HH:MM in 24-hour time, or null.
 - "title" is a short British-English phrase, at most 8 words, e.g. "Year 3 trip to Chester Zoo".
 - "cost" is the amount as written with its currency, e.g. "£12.50", or null.
 - "school" is the school's name if the letter says it, else null.
@@ -120,6 +136,6 @@ export function extractionRequest(input: ExtractionInput): Record<string, unknow
     ],
     response_format: { type: "json_schema", json_schema: EXTRACTION_SCHEMA },
     temperature: 0,
-    max_tokens: 2048,
+    max_tokens: MAX_OUTPUT_TOKENS,
   };
 }

@@ -7,7 +7,8 @@ import { parseExtraction } from "../src/extract/parse";
 
 interface Expected {
   date: string;
-  kind: string;
+  /** One kind, or the kinds that are all reasonable readings of the letter. */
+  kind: string | string[];
   cost?: string;
 }
 interface Letter {
@@ -71,7 +72,7 @@ for (const model of models) {
       errors?: unknown;
     };
     neurons += body.result?.usage?.neurons ?? 0;
-    const items = body.success ? parseExtraction(body.result) : null;
+    const items = body.success ? parseExtraction(body.result, letter.sentAt) : null;
     if (items === null) {
       failures++;
       expectedTotal += letter.expected.length;
@@ -84,10 +85,12 @@ for (const model of models) {
     for (const exp of letter.expected) {
       expectedTotal++;
       const i = unmatched.findIndex(
-        (it) => it.date === exp.date && (it.kind === exp.kind || exp.kind === "other"),
+        (it) =>
+          it.date === exp.date &&
+          ([exp.kind].flat().includes(it.kind) || [exp.kind].flat().includes("other")),
       );
       if (i === -1) {
-        notes.push(`${letter.name}: missed ${exp.date} ${exp.kind}`);
+        notes.push(`${letter.name}: missed ${exp.date} ${[exp.kind].flat().join("/")}`);
         continue;
       }
       found++;

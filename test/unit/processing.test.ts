@@ -22,7 +22,9 @@ const trip = (tag: string): string =>
 
 const TRIP_ITEMS = [
   {
-    date: "2025-10-16",
+    day: 16,
+    month: 10,
+    year: null,
     time: "08:15",
     kind: "event",
     title: "Year 3 trip to Chester Zoo",
@@ -33,7 +35,9 @@ const TRIP_ITEMS = [
     confidence: "high",
   },
   {
-    date: "2025-10-10",
+    day: 10,
+    month: 10,
+    year: null,
     time: null,
     kind: "payment",
     title: "Pay for Chester Zoo trip",
@@ -44,6 +48,13 @@ const TRIP_ITEMS = [
     confidence: "high",
   },
 ];
+
+/** An item as stored: the model's day/month/year become a resolved date. */
+function without(item: (typeof TRIP_ITEMS)[number] | undefined) {
+  if (item === undefined) throw new Error("missing item");
+  const { time, kind, title, cost, location, school, child, confidence } = item;
+  return { time, kind, title, cost, location, school, child, confidence };
+}
 
 /** Stores `raw` for a household as the inbound handler would, and registers the model's answer. */
 async function received(
@@ -86,8 +97,20 @@ describe("processing", () => {
     expect(await process(household, "process")).toEqual({ processed: 1, retry: false });
 
     expect(await household.items()).toEqual([
-      { id: "m1-1", messageId: "m1", ...TRIP_ITEMS[1], expiresAt: "2026-01-08T00:00:00.000Z" },
-      { id: "m1-0", messageId: "m1", ...TRIP_ITEMS[0], expiresAt: "2026-01-14T00:00:00.000Z" },
+      {
+        id: "m1-1",
+        messageId: "m1",
+        date: "2025-10-10",
+        ...without(TRIP_ITEMS[1]),
+        expiresAt: "2026-01-08T00:00:00.000Z",
+      },
+      {
+        id: "m1-0",
+        messageId: "m1",
+        date: "2025-10-16",
+        ...without(TRIP_ITEMS[0]),
+        expiresAt: "2026-01-14T00:00:00.000Z",
+      },
     ]);
     expect(await household.unreadable()).toEqual([
       { messageId: "m1", filename: "old-form.doc", reason: "unsupported format" },
@@ -133,8 +156,8 @@ describe("processing", () => {
         response: {
           items: [
             TRIP_ITEMS[0],
-            { ...TRIP_ITEMS[1], date: "2025-02-30" },
-            { ...TRIP_ITEMS[1], date: "10/10/2025" },
+            { ...TRIP_ITEMS[1], day: 30, month: 2 },
+            { ...TRIP_ITEMS[1], day: "tenth" },
             { ...TRIP_ITEMS[1], title: "" },
             { ...TRIP_ITEMS[1], kind: "banana", time: "25:00", cost: "null" },
           ],
@@ -211,5 +234,24 @@ describe("Household migrations", () => {
       return state.storage.sql.exec("SELECT status, attempts FROM messages WHERE id = 'old'").one();
     });
     expect(columns).toEqual({ status: "new", attempts: 0 });
+  });
+});
+
+describe("extraction versions", () => {
+  it("re-reads messages processed by an older version, replacing their items", async () => {
+    const household = await received(
+      "household-process-version",
+      trip("household-process-version"),
+      {
+        response: { items: TRIP_ITEMS },
+      },
+    );
+    await process(household, "version first");
+    await runInDurableObject(household, (_instance: Household, state) => {
+      state.storage.sql.exec("UPDATE messages SET extraction_version = 1");
+    });
+    expect(await process(household, "version again")).toEqual({ processed: 1, retry: false });
+    expect(await household.items()).toHaveLength(2);
+    expect(await process(household, "version current")).toEqual({ processed: 0, retry: false });
   });
 });

@@ -41,8 +41,8 @@ parent ──forward──▶ Email Routing (hello@school.jasoncabot.com)
 
 1. `Household.receive()` records the message (status `new`) and schedules `processScheduled` (Agents SDK `schedule`, idempotent).
 2. `processPending()` takes each `new` message: it reads the `.eml` from R2 and parses it with `postal-mime` (`src/extract/message.ts`).
-3. The body is used as text; an HTML-only body goes through toMarkdown. Attachments: PDF, Word, Excel, images and HTML go through toMarkdown; PPTX is unzipped with `fflate` (`src/extract/pptx.ts`); `.txt` and `.ics` are read as text; anything else is recorded in `unreadable`.
-4. One Workers AI call (`src/extract/prompt.ts`, JSON mode) returns items. `src/extract/parse.ts` checks every field and drops items that don't make sense.
+3. The body is used as text; an HTML-only body goes through toMarkdown. Attachments: PDFs are read with `unpdf` and laid out column by column (`src/extract/pdf.ts`), falling back to toMarkdown for scans; Word, Excel, images and HTML go through toMarkdown; PPTX is unzipped with `fflate` (`src/extract/pptx.ts`); `.txt` and `.ics` are read as text; anything else is recorded in `unreadable`.
+4. One Workers AI call (`src/extract/prompt.ts`, JSON mode) returns items with day, month and year as written. `src/extract/parse.ts` resolves the full date in code, checks every field and drops items that don't make sense.
 5. Items, unreadable files and the extracted text are stored in one transaction, and the message becomes `done`.
 
 ## Extracted item

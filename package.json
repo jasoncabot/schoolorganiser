@@ -27,7 +27,8 @@
   "dependencies": {
     "agents": "^0.24.0",
     "fflate": "^0.8.3",
-    "postal-mime": "^3.0.0"
+    "postal-mime": "^3.0.0",
+    "unpdf": "^1.8.1"
   },
   "devDependencies": {
     "@cloudflare/vitest-plugin": "^1.2.3",

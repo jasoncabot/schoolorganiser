@@ -1,4 +1,5 @@
 import PostalMime, { type Attachment } from "postal-mime";
+import { readPdfText } from "./pdf";
 import { readPptx } from "./pptx";
 
 export interface Unreadable {
@@ -20,6 +21,7 @@ const TO_MARKDOWN =
   /\.(pdf|jpe?g|png|webp|svg|gif|bmp|html?|xml|xlsx|xlsm|xlsb|xls|et|docx|ods|odt|csv|numbers)$/i;
 const PLAIN_TEXT = /\.(txt|ics)$/i;
 const PPTX = /\.pptx$/i;
+const PDF = /\.pdf$/i;
 /** At most this many images from one PowerPoint go to toMarkdown (each costs an AI call). */
 export const MAX_PPTX_IMAGES = 5;
 
@@ -85,6 +87,13 @@ async function readAttachment(
     } catch {
       return { reason: "conversion failed" };
     }
+  }
+  if (PDF.test(filename) || mimeType === "application/pdf") {
+    const text = await readPdfText(bytes);
+    if (text !== null) return text;
+    return (
+      (await toMarkdown(ai, filename, bytes, "application/pdf")) ?? { reason: "conversion failed" }
+    );
   }
   if (TO_MARKDOWN.test(filename)) {
     return (await toMarkdown(ai, filename, bytes, mimeType)) ?? { reason: "conversion failed" };

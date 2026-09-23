@@ -103,3 +103,33 @@ export async function pptx(
   // Fixed mtime keeps the zip bytes identical on every run.
   return zipSync(files, { mtime: new Date("2025-01-01T00:00:00Z") });
 }
+
+/**
+ * A minimal one-page PDF with a text layer: each line is drawn at (x, y) in points.
+ * Offsets in the cross-reference table are computed, so pdf.js reads it like any other PDF.
+ */
+export function pdf(lines: { text: string; x: number; y: number }[]): Uint8Array {
+  const escape = (t: string): string =>
+    t.replaceAll("\\", "\\\\").replaceAll("(", "\\(").replaceAll(")", "\\)");
+  const stream = lines
+    .map((l) => `BT /F1 10 Tf ${String(l.x)} ${String(l.y)} Td (${escape(l.text)}) Tj ET`)
+    .join("\n");
+  const objects = [
+    "<< /Type /Catalog /Pages 2 0 R >>",
+    "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+    "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 842 595] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>",
+    `<< /Length ${String(stream.length)} >>\nstream\n${stream}\nendstream`,
+    "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+  ];
+  let body = "%PDF-1.4\n";
+  const offsets: number[] = [];
+  objects.forEach((object, i) => {
+    offsets.push(body.length);
+    body += `${String(i + 1)} 0 obj\n${object}\nendobj\n`;
+  });
+  const xref = body.length;
+  body += `xref\n0 ${String(objects.length + 1)}\n0000000000 65535 f \n`;
+  for (const offset of offsets) body += `${String(offset).padStart(10, "0")} 00000 n \n`;
+  body += `trailer\n<< /Size ${String(objects.length + 1)} /Root 1 0 R >>\nstartxref\n${String(xref)}\n%%EOF\n`;
+  return new TextEncoder().encode(body);
+}

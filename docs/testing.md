@@ -64,7 +64,7 @@ Playwright drives the real Worker under `wrangler dev --env e2e`, with the same 
 - Tests import `env` and `exports` from `cloudflare:workers`. The versions exported by `cloudflare:test` are deprecated.
 - `test/helpers/deps.ts` provides `testDeps(name)` (fixed clock, seeded IDs and bytes) and `fixedClock()`.
 - `test/helpers/stubs.ts` provides `sentTo(address)`, which reads the email stub's outbox, and `registerAiRun()` / `registerMarkdown()`, which tell the AI stub what to return. Fixtures are keyed by the request's content, so tests running at the same time must send different content (e.g. tag the subject with the test's name); otherwise they overwrite each other's answers.
-- `test/helpers/mime.ts` builds raw MIME emails and minimal `.pptx` files deterministically.
+- `test/helpers/mime.ts` builds raw MIME emails, minimal `.pptx` files and minimal one-page PDFs with a text layer, all deterministically.
 - `test/wrangler.test.jsonc` sets `PROCESS_ON_RECEIVE` to `"0"`, so tests call `processPending(testDeps(…))` through `runInDurableObject` instead of relying on a scheduled alarm.
 - ESLint fails the build if code under `src/` or `test/` calls `Date.now()`, `new Date()`, `Math.random()`, `randomUUID()` or `getRandomValues()`. Only `src/deps.ts` may.
 - The Agents SDK scheduler reads the real clock internally. Test scheduled work by calling the callback directly with test deps, and check the stored schedule time. Don't wait for an alarm to fire in real time.
