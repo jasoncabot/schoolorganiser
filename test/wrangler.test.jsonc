@@ -1,0 +1,28 @@
+// Used by Vitest and by `wrangler dev` for Playwright. Mirrors ../wrangler.jsonc except that
+// AI and EMAIL are service bindings to the local stubs, so nothing reaches Cloudflare.
+// Keep the bindings in step with ../wrangler.jsonc.
+{
+  "$schema": "../node_modules/wrangler/config-schema.json",
+  "name": "schoolorganiser",
+  "main": "../src/index.ts",
+  "compatibility_date": "2026-09-21",
+  "compatibility_flags": ["nodejs_compat"],
+  "assets": { "directory": "../public", "binding": "ASSETS" },
+  "vars": {
+    "APP_ORIGIN": "http://localhost:8787",
+    "SIGNING_KEY": "test-signing-key-not-a-secret",
+    "PRIVACY_FORWARD_TO": "privacy-owner@example.com",
+  },
+  "services": [
+    { "binding": "AI", "service": "schoolorganiser-stubs", "entrypoint": "AiStub" },
+    { "binding": "EMAIL", "service": "schoolorganiser-stubs", "entrypoint": "EmailStub" },
+  ],
+  "r2_buckets": [{ "binding": "MAIL", "bucket_name": "schoolorganiser-mail-test" }],
+  "durable_objects": {
+    "bindings": [
+      { "name": "HOUSEHOLD", "class_name": "Household" },
+      { "name": "ADDRESS", "class_name": "Address" },
+    ],
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Household", "Address"] }],
+}

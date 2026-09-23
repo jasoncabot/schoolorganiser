@@ -1,0 +1,10 @@
+// Local stand-ins for Workers AI and Email Service. Never deployed.
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "schoolorganiser-stubs",
+  "main": "index.ts",
+  "compatibility_date": "2026-09-21",
+  "compatibility_flags": ["nodejs_compat"],
+  "durable_objects": { "bindings": [{ "name": "OUTBOX", "class_name": "Outbox" }] },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Outbox"] }],
+}

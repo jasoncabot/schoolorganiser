@@ -51,9 +51,24 @@ Playwright drives the real Worker under `wrangler dev --env e2e`, with the same 
 
 The test-only routes (outbox reader, clock control) exist only when the `e2e` environment's stub bindings are present. The production config doesn't include those bindings.
 
-## Commands (to be created at scaffold)
+## How it's wired
+
+- `test/wrangler.test.jsonc` mirrors `wrangler.jsonc`, but `AI` and `EMAIL` are service bindings to the stub Worker (`test/stubs/`). Vitest and `wrangler dev` for Playwright both use it. Keep its bindings in step with `wrangler.jsonc`.
+- `test/global-setup.ts` bundles the stubs into `test/stubs/dist/`, and Vitest loads that as an auxiliary Worker.
+- Tests import `env` and `exports` from `cloudflare:workers`. The versions exported by `cloudflare:test` are deprecated.
+- `test/helpers/deps.ts` provides `testDeps(name)` (fixed clock, seeded IDs and bytes) and `fixedClock()`.
+- `test/helpers/stubs.ts` provides `sentTo(address)`, which reads the email stub's outbox.
+- ESLint fails the build if code under `src/` or `test/` calls `Date.now()`, `new Date()`, `Math.random()`, `randomUUID()` or `getRandomValues()`. Only `src/deps.ts` may.
+- The Agents SDK scheduler reads the real clock internally. Test scheduled work by calling the callback directly with test deps, and check the stored schedule time. Don't wait for an alarm to fire in real time.
+- When a stub throws across RPC, workerd logs "uncaught exception" and "hung". That's expected in the stub tests that check for failures.
+
+## Commands
 
 - `npm test`: runs Vitest.
-- `npm run test:e2e`: runs Playwright.
-- `npm run lint`: runs ESLint, Prettier (check) and `tsc`.
-- `npm run check`: runs all of the above; this is what Workers Builds runs before deploying.
+- `npm run test:shuffle`: runs Vitest twice, shuffled with seeds 1 and 2.
+- `npm run test:coverage`: runs Vitest with Istanbul coverage.
+- `npm run test:e2e`: builds the CSS and runs Playwright. Where the installed Chromium doesn't match Playwright's version, set `PLAYWRIGHT_CHROMIUM_EXECUTABLE`.
+- `npm run lint`: runs ESLint, Prettier (check) and `tsc` for both tsconfigs.
+- `npm run check`: checks the generated types are current, then runs lint, the shuffled tests and e2e. Workers Builds runs this before deploying.
+
+Coverage has no threshold yet. Set one in `vitest.config.ts` once the features in steps 3 to 8 land.

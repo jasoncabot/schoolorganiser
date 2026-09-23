@@ -1,0 +1,4 @@
+# Copy to .dev.vars for `wrangler dev`. Never commit .dev.vars.
+# Values here are placeholders, not real secrets.
+SIGNING_KEY=local-dev-signing-key-not-a-secret
+PRIVACY_FORWARD_TO=you@example.com

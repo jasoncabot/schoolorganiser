@@ -1,0 +1,9 @@
+node_modules/
+**/.wrangler/
+coverage/
+playwright-report/
+test-results/
+public/assets/
+worker-configuration.d.ts
+package-lock.json
+test/stubs/dist/

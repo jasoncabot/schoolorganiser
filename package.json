@@ -1,0 +1,51 @@
+{
+  "name": "schoolorganiser",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "npm@11.20.0",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build:css": "tailwindcss -i src/styles/app.css -o public/assets/app.css --minify",
+    "types": "wrangler types --strict-vars=false",
+    "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.node.json",
+    "lint": "eslint . && prettier --check . && npm run typecheck",
+    "format": "prettier --write . && eslint --fix .",
+    "test": "vitest run",
+    "test:shuffle": "vitest run --sequence.seed=1 && vitest run --sequence.seed=2",
+    "test:coverage": "vitest run --coverage",
+    "test:e2e": "npm run build:css && playwright test",
+    "check": "npm run types -- --check && npm run lint && npm run test:shuffle && npm run test:e2e",
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy"
+  },
+  "dependencies": {
+    "agents": "^0.24.0",
+    "fflate": "^0.8.3",
+    "postal-mime": "^3.0.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@playwright/test": "^1.63.0",
+    "@tailwindcss/cli": "^4.3.3",
+    "@types/node": "^26.6.2",
+    "eslint": "^10.11.0",
+    "eslint-config-prettier": "^10.1.8",
+    "prettier": "^3.9.9",
+    "tailwindcss": "^4.3.3",
+    "typescript": "~6.0.0",
+    "typescript-eslint": "^8.70.1",
+    "wrangler": "^4.136.3",
+    "vitest": "~4.1.11",
+    "@vitest/coverage-istanbul": "~4.1.11",
+    "@cloudflare/vitest-plugin": "^1.2.3"
+  },
+  "allowScripts": {
+    "workerd": true,
+    "esbuild": true,
+    "core-js-pure": false,
+    "@parcel/watcher": false
+  }
+}

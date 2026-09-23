@@ -33,6 +33,13 @@ This project enables the `cloudflare@cloudflare` plugin from `cloudflare/skills`
 
 TypeScript, Cloudflare Workers, Agents SDK (a SQLite-backed Durable Object per household), Workers AI, R2, Email Routing (inbound) and Email Service (outbound). The web UI uses Tailwind CSS v4. Tests use Vitest with `@cloudflare/vitest-plugin` and Playwright; linting uses ESLint and Prettier. Deploys go through Workers Builds on push to `main`, after `npm run check`.
 
+## Commands
+
+- `npm run check`: runs everything CI runs. Run it before every push.
+- `npm test`, `npm run test:e2e`, `npm run lint`, `npm run format`
+- `npm run types`: run after changing `wrangler.jsonc`. Keep `test/wrangler.test.jsonc` in step with it.
+- Use npm 11 (`npx npm@11 install`). npm 10 fails with an `edgesOut` error on this dependency tree.
+
 ## Conventions
 
 - Dates are shown in UK format (`Mon 6 Oct`) and times in Europe/London.

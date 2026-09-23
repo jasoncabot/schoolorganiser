@@ -1,0 +1,59 @@
+@import "tailwindcss";
+
+/* Design tokens: see docs/design.md. Plain, high contrast, WCAG 2.2 AA. */
+@theme {
+  --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+
+  --color-ink: #0b0c0c;
+  --color-muted: #505a5f;
+  --color-rule: #b1b4b6;
+  --color-panel: #f3f2f1;
+  --color-link: #1d70b8;
+  --color-link-visited: #4c2c92;
+  --color-link-hover: #003078;
+  --color-focus: #ffdd00;
+  --color-error: #d4351c;
+  --color-success: #00703c;
+  --color-brand: #0b0c0c;
+
+  --text-body: 1.1875rem; /* 19px */
+  --text-body--line-height: 1.5;
+}
+
+@layer base {
+  html {
+    @apply bg-white font-sans text-ink;
+  }
+  body {
+    @apply text-base md:text-body;
+  }
+  a {
+    @apply text-link underline underline-offset-2 hover:text-link-hover hover:decoration-2 visited:text-link-visited;
+  }
+  :focus-visible {
+    @apply bg-focus text-ink outline-3 outline-offset-0 outline-focus;
+    box-shadow: 0 4px var(--color-ink);
+  }
+  h1 {
+    @apply mb-8 text-3xl font-bold md:text-5xl;
+  }
+  h2 {
+    @apply mb-4 text-2xl font-bold md:text-3xl;
+  }
+  p {
+    @apply mb-5;
+  }
+}
+
+@layer components {
+  .page {
+    @apply mx-auto max-w-4xl px-4 md:px-8;
+  }
+  .button {
+    @apply inline-block cursor-pointer bg-success px-4 py-2 font-semibold text-white no-underline;
+    box-shadow: 0 2px #002d18;
+  }
+  .inset {
+    @apply my-6 border-l-8 border-rule py-2 pl-4;
+  }
+}

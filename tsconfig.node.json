@@ -1,0 +1,18 @@
+{
+  // Code that runs in Node: tool config, Playwright tests and global setup.
+  "compilerOptions": {
+    "target": "es2024",
+    "lib": ["es2024", "dom"],
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "types": ["node"],
+    "allowJs": true,
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "isolatedModules": true,
+    "verbatimModuleSyntax": true,
+    "skipLibCheck": true,
+    "noEmit": true
+  },
+  "include": ["*.ts", "*.js", "test/e2e", "test/global-setup.ts"]
+}

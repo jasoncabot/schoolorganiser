@@ -1,0 +1,24 @@
+// Production config. No secrets here: they're set with `wrangler secret put`.
+// Tests use test/wrangler.test.jsonc instead, which swaps AI and email for local stubs.
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "schoolorganiser",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-09-21",
+  "compatibility_flags": ["nodejs_compat"],
+  "build": { "command": "npm run build:css" },
+  "assets": { "directory": "public", "binding": "ASSETS" },
+  "observability": { "enabled": true },
+  "vars": { "APP_ORIGIN": "https://school.jasoncabot.com" },
+  "secrets": { "required": ["SIGNING_KEY", "PRIVACY_FORWARD_TO"] },
+  "ai": { "binding": "AI" },
+  "send_email": [{ "name": "EMAIL", "remote": true }],
+  "r2_buckets": [{ "binding": "MAIL", "bucket_name": "schoolorganiser-mail" }],
+  "durable_objects": {
+    "bindings": [
+      { "name": "HOUSEHOLD", "class_name": "Household" },
+      { "name": "ADDRESS", "class_name": "Address" },
+    ],
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Household", "Address"] }],
+}
