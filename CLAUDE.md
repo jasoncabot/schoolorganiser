@@ -31,11 +31,18 @@ This project enables the `cloudflare@cloudflare` plugin from `cloudflare/skills`
 
 ## Stack
 
-TypeScript, Cloudflare Workers, Agents SDK (a SQLite-backed Durable Object per household), Workers AI, R2, Email Routing (inbound) and Email Service (outbound). The web UI uses Tailwind CSS v4. Tests use Vitest with `@cloudflare/vitest-plugin` and Playwright; linting uses ESLint and Prettier. Deploys go through Workers Builds on push to `main`, after `npm run check`.
+TypeScript, Cloudflare Workers, Agents SDK (a SQLite-backed Durable Object per household), Workers AI, R2, Email Routing (inbound) and Email Service (outbound). The web UI uses Tailwind CSS v4. Tests use Vitest with `@cloudflare/vitest-plugin` and Playwright; linting uses ESLint and Prettier. Deploys go through Workers Builds on push to `main`, after `npm run check:ci`.
+
+## Workflow (until v1)
+
+There are no production users yet, so work directly on `main`: pull `main`, make the change, run `npm run check`, then push to `main`. We'll revisit branches and PRs at v1.
+
+**Always run `npm run check` locally before pushing to `main`.** It includes the Playwright tests, which Workers Builds doesn't run, so this is the only place they catch problems before a deploy.
 
 ## Commands
 
-- `npm run check`: runs everything CI runs. Run it before every push.
+- `npm run check`: runs types, lint, the shuffled unit tests and Playwright. Required before every push.
+- `npm run check:ci`: the same without Playwright. This is what Workers Builds runs before deploying.
 - `npm test`, `npm run test:e2e`, `npm run lint`, `npm run format`
 - `npm run types`: run after changing `wrangler.jsonc`. Keep `test/wrangler.test.jsonc` in step with it.
 - Use npm 11 (`npx npm@11 install`). npm 10 fails with an `edgesOut` error on this dependency tree.

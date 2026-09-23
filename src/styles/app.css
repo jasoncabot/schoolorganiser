@@ -1,8 +1,18 @@
 @import "tailwindcss";
 
+/* Headings: Inter Tight, self-hosted from /assets/fonts (copied by scripts/copy-fonts.mjs). */
+@font-face {
+  font-family: "Inter Tight";
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url("/assets/fonts/inter-tight.woff2") format("woff2");
+}
+
 /* Design tokens: see docs/design.md. Plain, high contrast, WCAG 2.2 AA. */
 @theme {
   --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+  --font-display: "Inter Tight", system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
 
   --color-ink: #0b0c0c;
   --color-muted: #505a5f;
@@ -34,11 +44,16 @@
     @apply bg-focus text-ink outline-3 outline-offset-0 outline-focus;
     box-shadow: 0 4px var(--color-ink);
   }
+  h1,
+  h2,
+  h3 {
+    @apply font-display font-bold text-balance;
+  }
   h1 {
-    @apply mb-8 text-3xl font-bold md:text-5xl;
+    @apply mb-8 text-3xl leading-tight md:text-5xl;
   }
   h2 {
-    @apply mb-4 text-2xl font-bold md:text-3xl;
+    @apply mb-4 text-2xl leading-snug md:text-3xl;
   }
   p {
     @apply mb-5;

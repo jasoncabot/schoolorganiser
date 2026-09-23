@@ -5,7 +5,7 @@ Determinism matters most. The whole suite must run in parallel and give the same
 ## Tools
 
 - **Unit and integration:** Vitest with `@cloudflare/vitest-plugin`, which runs tests inside `workerd` using Miniflare. This package replaced `@cloudflare/vitest-pool-workers`. Pin Vitest to the major version the plugin supports (4.x at the time of writing).
-- **End to end:** Playwright (`@playwright/test`), run against `wrangler dev` locally.
+- **End to end:** Playwright (`@playwright/test`), run against `wrangler dev` locally. Never in Workers Builds.
 - **Lint and format:** ESLint (flat config) with `typescript-eslint` in strict, type-checked mode, plus Prettier. `tsc --noEmit` runs with `strict`.
 - **Coverage:** Istanbul, because V8 coverage isn't supported in `workerd`.
 
@@ -67,8 +67,9 @@ The test-only routes (outbox reader, clock control) exist only when the `e2e` en
 - `npm test`: runs Vitest.
 - `npm run test:shuffle`: runs Vitest twice, shuffled with seeds 1 and 2.
 - `npm run test:coverage`: runs Vitest with Istanbul coverage.
-- `npm run test:e2e`: builds the CSS and runs Playwright. Where the installed Chromium doesn't match Playwright's version, set `PLAYWRIGHT_CHROMIUM_EXECUTABLE`.
+- `npm run test:e2e`: builds the CSS and fonts, then runs Playwright. Where the installed Chromium doesn't match Playwright's version, set `PLAYWRIGHT_CHROMIUM_EXECUTABLE`.
 - `npm run lint`: runs ESLint, Prettier (check) and `tsc` for both tsconfigs.
-- `npm run check`: checks the generated types are current, then runs lint, the shuffled tests and e2e. Workers Builds runs this before deploying.
+- `npm run check:ci`: checks the generated types are current, then runs lint and the shuffled tests. Workers Builds runs this before deploying.
+- `npm run check`: runs `check:ci` plus Playwright. Run it locally before every push to `main`: it's the only place the e2e tests run.
 
 Coverage has no threshold yet. Set one in `vitest.config.ts` once the features in steps 3 to 8 land.

@@ -6,7 +6,7 @@
   "main": "src/index.ts",
   "compatibility_date": "2026-09-21",
   "compatibility_flags": ["nodejs_compat"],
-  "build": { "command": "npm run build:css" },
+  "build": { "command": "npm run build" },
   "assets": { "directory": "public", "binding": "ASSETS" },
   "observability": { "enabled": true },
   "vars": { "APP_ORIGIN": "https://school.jasoncabot.com" },

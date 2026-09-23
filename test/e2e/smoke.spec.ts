@@ -38,3 +38,14 @@ test("inbound email reaches the Worker", async ({ request }) => {
   );
   expect(response.ok()).toBe(true);
 });
+
+test("headings use the self-hosted Inter Tight font", async ({ page }) => {
+  await page.goto("/");
+  const heading = page.getByRole("heading", { level: 1 });
+  await expect(heading).toHaveCSS("font-family", /^"Inter Tight"/);
+  const loaded = await page.evaluate(async () => {
+    await document.fonts.ready;
+    return document.fonts.check('700 48px "Inter Tight"');
+  });
+  expect(loaded).toBe(true);
+});

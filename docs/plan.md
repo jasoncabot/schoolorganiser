@@ -1,9 +1,9 @@
 # Build plan
 
-Each step ships with tests (see `testing.md`) and deploys via Workers Builds once `npm run check` passes.
+Each step ships with tests (see `testing.md`) and deploys via Workers Builds once `npm run check:ci` passes. Run `npm run check`, which includes Playwright, locally before pushing.
 
 1. **Scaffold (done):** Worker and Agents SDK, `wrangler.jsonc` (with an `e2e` environment), `@cloudflare/vitest-plugin` with the AI and email stub Workers, the `Deps` object, ESLint, Prettier, strict `tsc`, Playwright, the Tailwind v4 build, `.dev.vars.example` and `.gitignore`.
-2. **Provision:** set up Email Routing on `school.jasoncabot.com` (`hello@` and `privacy@`) pointing to the Worker, add the owner as a verified destination, onboard Email Service sending, create the R2 bucket and its lifecycle rules, connect Workers Builds and add the secrets.
+2. **Provision:** set up Email Routing on `school.jasoncabot.com` (`hello@` and `privacy@`) pointing to the Worker, add the owner as a verified destination, onboard Email Service sending, create the R2 bucket and its lifecycle rules, connect Workers Builds (build command `npm run check:ci && npm run build`, deploy command `npx wrangler deploy`) and add the secrets.
 3. **Inbound:** `email()` handler with the auth check, raw mail to R2 and the address lookup.
 4. **Verification:** signed link, holding pending mail, promoting it on verify.
 5. **Processing:** MIME parsing, `toMarkdown` for PDF, DOCX and images, PPTX via `fflate`, recording unreadable files, AI extraction into `items`.
