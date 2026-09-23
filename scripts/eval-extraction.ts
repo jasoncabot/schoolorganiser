@@ -79,7 +79,10 @@ for (const model of models) {
     };
     neurons += body.result?.usage?.neurons ?? 0;
     const items = body.success
-      ? parseExtraction(body.result, letter.sentAt, `${letter.subject}\n${letter.text}`)
+      ? parseExtraction(body.result, letter.sentAt, {
+          text: `${letter.subject}\n${letter.text}`,
+          complete: true,
+        })
       : null;
     if (items === null) {
       failures++;

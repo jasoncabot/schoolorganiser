@@ -492,11 +492,10 @@ export class Household extends Agent<Env> {
           })),
         }),
       );
-      const parsed = parseExtraction(
-        result,
-        sentAt,
-        message.images.length === 0 ? `${message.subject}\n${message.text}` : undefined,
-      );
+      const parsed = parseExtraction(result, sentAt, {
+        text: `${message.subject}\n${message.text}`,
+        complete: message.images.length === 0,
+      });
       if (parsed === null) throw new Error("UnusableExtraction");
       items = parsed;
       notes = parseNotes(result);
@@ -552,7 +551,11 @@ export class Household extends Agent<Env> {
       this.db.exec("DELETE FROM notes WHERE message_id = ?", id);
       this.db.exec("DELETE FROM unreadable WHERE message_id = ?", id);
       read.items.forEach((item, index) => {
-        const { childIds, maybeChildIds } = relevance(item, read.children);
+        const { childIds, maybeChildIds } = relevance(
+          item,
+          read.children,
+          new Date(read.processedAt),
+        );
         this.db.exec(
           `INSERT INTO items (id, message_id, date, time, kind, title, cost, location, school, child, confidence, expires_at, child_ids, maybe_child_ids, date_unsure, repeats)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -575,7 +578,11 @@ export class Household extends Agent<Env> {
         );
       });
       read.notes.forEach((note, index) => {
-        const { childIds, maybeChildIds } = relevance(note, read.children);
+        const { childIds, maybeChildIds } = relevance(
+          note,
+          read.children,
+          new Date(read.processedAt),
+        );
         this.db.exec(
           `INSERT INTO notes (id, message_id, text, school, child, child_ids, maybe_child_ids)
            VALUES (?, ?, ?, ?, ?, ?, ?)`,

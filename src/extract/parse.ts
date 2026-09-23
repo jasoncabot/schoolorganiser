@@ -1,3 +1,4 @@
+import { yearGroupsIn } from "./audience";
 import { ITEM_KINDS, type ExtractedItem, type ExtractedNote, type ItemKind } from "./prompt";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -45,17 +46,60 @@ export function resolveDate(
 export function parseExtraction(
   result: unknown,
   sentAt: string,
-  /** The letter's text, to check times against. Omit when the model also saw page images. */
-  sourceText?: string,
+  /**
+   * The letter's text, to check the model against. `complete` is false when the model also saw
+   * page images, which may hold words the text layer lacks: times are then not checked.
+   */
+  source?: { text: string; complete: boolean },
 ): ExtractedItem[] | null {
   const payload = unwrap(result);
   if (payload === null || typeof payload !== "object" || !("items" in payload)) return null;
   const items = payload.items;
   if (!Array.isArray(items)) return null;
-  return items.flatMap((raw) => {
-    const item = cleanItem(raw, sentAt, sourceText);
+  const cleaned = items.flatMap((raw) => {
+    const item = cleanItem(raw, sentAt, source?.complete === true ? source.text : undefined);
     return item === null ? [] : [item];
   });
+  return source === undefined ? cleaned : oneDatePerEvent(cleaned, source.text);
+}
+
+/** Words too common in titles to tie an event to a line of the letter. */
+const TITLE_STOPWORDS = new Set(
+  "week weeks starts start begins ends school day days trip event with from your this that term the and for due pay".split(
+    " ",
+  ),
+);
+
+/**
+ * When the model gives one event two or more dates (e.g. a calendar row's date copied to the
+ * next row), keeps the dates the letter writes on the same line as the event's name. Keeps all
+ * of them when the text can't tell, so this never drops an event outright.
+ */
+export function oneDatePerEvent(items: ExtractedItem[], text: string): ExtractedItem[] {
+  const key = (i: ExtractedItem): string =>
+    i.title
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, " ")
+      .trim();
+  const lines = text.toLowerCase().split("\n");
+  const supported = (i: ExtractedItem): boolean => {
+    const words = key(i)
+      .split(" ")
+      .filter((w) => w.length >= 4 && !TITLE_STOPWORDS.has(w));
+    const day = new RegExp(`(^|\\D)${String(Number(i.date.slice(8)))}(st|nd|rd|th)?(\\D|$)`);
+    return lines.some((line) => words.some((w) => line.includes(w)) && day.test(line));
+  };
+  const drop = new Set<ExtractedItem>();
+  const groups = new Map<string, ExtractedItem[]>();
+  for (const i of items) groups.set(key(i), [...(groups.get(key(i)) ?? []), i]);
+  for (const group of groups.values()) {
+    if (new Set(group.map((i) => i.date)).size < 2) continue;
+    const backed = group.filter(supported);
+    if (backed.length > 0 && backed.length < group.length) {
+      for (const i of group) if (!backed.includes(i)) drop.add(i);
+    }
+  }
+  return items.filter((i) => !drop.has(i));
 }
 
 /** At most this many notes are kept from one email. */
@@ -211,5 +255,5 @@ const NOT_A_CLASS =
  * "Oak class" or "Hazel", rather than a year group, key stage or the whole school.
  */
 export function namesAClass(audience: string | null): boolean {
-  return audience !== null && !NOT_A_CLASS.test(audience);
+  return audience !== null && yearGroupsIn(audience) === null && !NOT_A_CLASS.test(audience);
 }

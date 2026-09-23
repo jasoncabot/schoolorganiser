@@ -1,0 +1,23 @@
+{
+  "sentAt": "2026-09-11T14:00:00.000Z",
+  "subject": "Fwd: Weekly newsletter",
+  "text": "Attachment: newsletter.pdf\nPage 1\nDiary dates\nOCTOBER\n1st - Census day\n5th-9th - Cycle to School week!\n6th - PTA AGM @ 7pm\n7th - EYFS & Y1 Phonics showcase\n\nGet those bicycles out of the garage and ready for Cycle to School Week!\n5 - 9 October 2026",
+  "expected": [
+    {
+      "date": "2026-10-01",
+      "kind": ["other", "event"]
+    },
+    {
+      "date": "2026-10-05",
+      "kind": ["event", "other"]
+    },
+    {
+      "date": "2026-10-06",
+      "kind": "event"
+    },
+    {
+      "date": "2026-10-07",
+      "kind": "event"
+    }
+  ]
+}

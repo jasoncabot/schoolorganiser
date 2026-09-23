@@ -12,7 +12,7 @@ export const EXTRACTION_MODEL = "@cf/mistralai/mistral-small-3.1-24b-instruct";
  * Bump when reading or extraction changes in a way worth re-running on stored mail (prompt,
  * model, PDF layout). Messages read by an older version are re-read on the next processing run.
  */
-export const EXTRACTION_VERSION = 8;
+export const EXTRACTION_VERSION = 9;
 
 export const ITEM_KINDS = [
   "event",
@@ -162,6 +162,7 @@ Rules:
 - Dates are UK style (day before month). Give "day" and "month" as numbers. Give "year" only if the letter states it for that date (e.g. "07/09/26" is 2026), otherwise null; never work the year out yourself.
 - "weekday" is the day of the week exactly as the letter gives it next to this date (e.g. "Tue 14th October" gives "Tuesday"), else null. Never work it out yourself.
 - In calendars and tables, a month heading applies to every date listed under it.
+- In calendars and lists, a date belongs only to the event written next to it on the same line or in the same cell; never give an event the date of the line above or below.
 - For a range (e.g. "5th-9th October"), use the first day and say it's a range in the title.
 - "time" is HH:MM in 24-hour time, only if the letter states a clock time; "after school", "lunchtime" and "morning" are not times, so give null.
 - "title" is a short British-English phrase, at most 8 words, e.g. "Year 3 trip to Chester Zoo".

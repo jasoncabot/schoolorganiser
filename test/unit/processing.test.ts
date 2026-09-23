@@ -367,6 +367,7 @@ describe("which children each item is for", () => {
             ...TRIP_ITEMS[1],
             day: 20,
             title: "Harvest festival",
+            child: null,
             for: ["Ada", "Sam", "Somebody else"],
           },
         ],

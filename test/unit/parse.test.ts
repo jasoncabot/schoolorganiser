@@ -68,11 +68,10 @@ describe("parseExtraction", () => {
 
   it("drops a time the letter doesn't state", () => {
     const parse = (time: string, text: string) =>
-      parseExtraction(
-        { response: { items: [{ ...item, time }] } },
-        "2025-09-29T15:10:00.000Z",
+      parseExtraction({ response: { items: [{ ...item, time }] } }, "2025-09-29T15:10:00.000Z", {
         text,
-      )?.[0]?.time;
+        complete: true,
+      })?.[0]?.time;
     expect(parse("15:30", "Judo club after school on Wednesdays.")).toBeNull();
     expect(parse("15:30", "Judo club from 3.30pm on Wednesdays.")).toBe("15:30");
     expect(parse("15:30", "Judo club 15:30 to 16:30.")).toBe("15:30");
@@ -91,6 +90,59 @@ describe("parseExtraction", () => {
         "2025-09-29T15:10:00.000Z",
       ) ?? [];
     expect(parsed?.child).toBeNull();
+  });
+
+  it("keeps times when page images may hold them", () => {
+    const [parsed] =
+      parseExtraction(
+        { response: { items: [{ ...item, time: "15:30" }] } },
+        "2025-09-29T15:10:00.000Z",
+        {
+          text: "Judo after school.",
+          complete: false,
+        },
+      ) ?? [];
+    expect(parsed?.time).toBe("15:30");
+  });
+
+  it("keeps an event's dates that the letter writes on the event's line", () => {
+    const text =
+      "OCTOBER\n1st - Census day\n5th-9th - Cycle to School week!\n6th - PTA AGM @ 7pm\n" +
+      "Get your bikes ready for Cycle to School Week!";
+    const cycle = { ...item, title: "Cycle to School week starts", time: null };
+    const parsed = parseExtraction(
+      {
+        response: {
+          items: [
+            { ...item, day: 1, title: "School census day", time: null },
+            { ...cycle, day: 1 },
+            { ...cycle, day: 5 },
+          ],
+        },
+      },
+      "2025-09-29T15:10:00.000Z",
+      { text, complete: false },
+    );
+    expect(parsed?.map((p) => [p.date, p.title])).toEqual([
+      ["2025-10-01", "School census day"],
+      ["2025-10-05", "Cycle to School week starts"],
+    ]);
+  });
+
+  it("keeps every date when the text can't tell which is right", () => {
+    const parsed = parseExtraction(
+      {
+        response: {
+          items: [
+            { ...item, day: 1, title: "Book fair", time: null },
+            { ...item, day: 8, title: "Book fair", time: null },
+          ],
+        },
+      },
+      "2025-09-29T15:10:00.000Z",
+      { text: "The book fair is coming soon.", complete: true },
+    );
+    expect(parsed).toHaveLength(2);
   });
 
   it("keeps how often a recurring event runs", () => {
