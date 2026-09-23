@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { ukDate, verificationEmail } from "../../src/email/outbound";
+import { verificationEmail } from "../../src/email/outbound";
+import { ukDate } from "../../src/uk-time";
 
 describe("ukDate", () => {
   it("formats in UK time across the clock changes", () => {

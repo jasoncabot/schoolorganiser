@@ -9,8 +9,8 @@ Each step ships with tests and deploys through Workers Builds.
 5. Processing: parsing, attachments, extraction. **Done.**
 6. Sign-in, children, invitations, PDF page images, relevance. **Done.**
 7. Retention: deletion at expiry. **Done.**
-8. **Digest (next):** the Sunday email to every member, with a stop link.
-9. Rest of the web page: upcoming items, pause digest, delete data.
+8. Digest: the Sunday email to every member, with a stop link. **Done.**
+9. Rest of the web page: upcoming items (and link "Plus N more." to them), restart a stopped digest, delete data. **Next.**
 10. Playwright journey from forward to digest.
 11. Owner trial with real mail from both schools; tune extraction and digest copy.
 12. Automatic forwarding rules.

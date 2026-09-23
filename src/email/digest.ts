@@ -1,0 +1,189 @@
+import type { Child } from "../children";
+import type { StoredItem } from "../household";
+import { addDaysToDate, dayLabel, londonDate, londonTime, ukTime, weekday } from "../uk-time";
+import { escape } from "../web/html";
+import { layout, type OutboundEmail } from "./outbound";
+
+/** Sunday at this hour, UK time. */
+export const DIGEST_HOUR = 18;
+/** Most item lines in one digest, across both sections (docs/decisions.md). */
+export const MAX_LINES = 15;
+/** "Coming up" covers deadlines and payments up to this many days ahead. */
+const COMING_UP_DAYS = 21;
+
+/** The next Sunday at DIGEST_HOUR, UK time, strictly after `now`. */
+export function nextDigestTime(now: Date): Date {
+  const today = londonDate(now);
+  const sunday = addDaysToDate(today, (7 - weekday(today)) % 7);
+  const time = londonTime(sunday, DIGEST_HOUR);
+  return time > now ? time : londonTime(addDaysToDate(sunday, 7), DIGEST_HOUR);
+}
+
+export interface DigestInput {
+  now: Date;
+  items: StoredItem[];
+  children: Child[];
+  /** Attachments we couldn't read and haven't mentioned yet. */
+  unreadable: { filename: string; subject: string | null }[];
+  appOrigin: string;
+  stopLink: string;
+}
+
+interface Line {
+  date: string;
+  text: string;
+}
+
+/**
+ * The weekly email: the seven days from tomorrow, grouped by day, then deadlines and payments in
+ * the fortnight after. Only items for the household's children, "maybe" items and, when no
+ * children are set up, everything.
+ */
+export function digestEmail(input: DigestInput): OutboundEmail {
+  const first = addDaysToDate(londonDate(input.now), 1);
+  const last = addDaysToDate(first, 6);
+  const comingUpLast = addDaysToDate(first, COMING_UP_DAYS - 1);
+  const names = new Map(input.children.map((c) => [c.id, c.name]));
+  const relevant = unique(input.items.filter(isRelevant).sort(byDateAndTime));
+
+  const week = relevant
+    .filter((i) => i.date >= first && i.date <= last)
+    .map((i) => ({ date: i.date, text: describe(i, names) }));
+  const comingUp = relevant
+    .filter(
+      (i) =>
+        (i.kind === "deadline" || i.kind === "payment") && i.date > last && i.date <= comingUpLast,
+    )
+    .map((i) => ({ date: i.date, text: `${dayLabel(i.date)}, ${describe(i, names)}` }));
+  const weekShown = week.slice(0, MAX_LINES);
+  const comingUpShown = comingUp.slice(0, MAX_LINES - weekShown.length);
+
+  const heading = `Week of ${dayLabel(first)}`;
+  const subject = `School this week: ${dayLabel(first)} to ${dayLabel(last)}`;
+  const hello = `hello@${new URL(input.appOrigin).hostname}`;
+  const more = (shown: Line[], all: Line[]): string | null =>
+    all.length > shown.length ? `Plus ${String(all.length - shown.length)} more.` : null;
+  const unreadable =
+    input.unreadable.length === 0
+      ? null
+      : `We couldn't read ${input.unreadable.map(fileLabel).join(", ")}. Check the original ${input.unreadable.length === 1 ? "email" : "emails"}.`;
+
+  const text: string[] = [heading, ""];
+  const html: string[] = [];
+  if (week.length === 0) {
+    text.push("Nothing on this week.", "");
+    html.push(paragraph("Nothing on this week."));
+  }
+  for (const [date, lines] of byDay(weekShown)) {
+    text.push(dayLabel(date), ...lines.map((l) => `- ${l.text}`), "");
+    html.push(subheading(dayLabel(date)), list(lines));
+  }
+  const weekMore = more(weekShown, week);
+  if (weekMore !== null) {
+    text.push(weekMore, "");
+    html.push(paragraph(weekMore));
+  }
+  if (comingUp.length > 0) {
+    text.push("Coming up", ...comingUpShown.map((l) => `- ${l.text}`));
+    html.push(subheading("Coming up"));
+    if (comingUpShown.length > 0) html.push(list(comingUpShown));
+    const comingUpMore = more(comingUpShown, comingUp);
+    if (comingUpMore !== null) {
+      text.push(comingUpMore);
+      html.push(paragraph(comingUpMore));
+    }
+    text.push("");
+  }
+  if (unreadable !== null) {
+    text.push(unreadable, "");
+    html.push(paragraph(unreadable, "#505a5f"));
+  }
+  text.push(
+    "--",
+    `Stop these emails: ${input.stopLink}`,
+    `School Organiser · Forward school emails to ${hello}`,
+    `Privacy: ${input.appOrigin}/privacy`,
+  );
+  return {
+    subject,
+    text: text.join("\n"),
+    html: layout(heading, html.join("\n"), input.appOrigin, hello, input.stopLink),
+  };
+}
+
+function isRelevant(item: StoredItem): boolean {
+  return item.childIds === null || item.childIds.length > 0 || item.maybeChildIds.length > 0;
+}
+
+/** By date, then all-day items, then by time. */
+function byDateAndTime(a: StoredItem, b: StoredItem): number {
+  return a.date.localeCompare(b.date) || (a.time ?? "").localeCompare(b.time ?? "");
+}
+
+/** Drops repeats, e.g. the same letter forwarded by both parents, or a reminder letter. */
+function unique(items: StoredItem[]): StoredItem[] {
+  const seen = new Set<string>();
+  return items.filter((i) => {
+    const key = JSON.stringify([
+      i.date,
+      i.time,
+      i.title.toLowerCase(),
+      i.childIds,
+      i.maybeChildIds,
+    ]);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+/** "Ada: Trip to Chester Zoo, 8:15am, Chester Zoo, £18.50" */
+function describe(item: StoredItem, names: Map<string, string>): string {
+  const details = [
+    item.title,
+    item.time === null ? null : ukTime(item.time),
+    item.location,
+    item.cost,
+  ]
+    .filter((d) => d !== null)
+    .join(", ");
+  const who = audience(item, names);
+  return who === null ? details : `${who}: ${details}`;
+}
+
+function audience(item: StoredItem, names: Map<string, string>): string | null {
+  const nameOf = (ids: string[]): string[] => ids.flatMap((id) => names.get(id) ?? []);
+  if (item.childIds === null) return item.child;
+  const sure = nameOf(item.childIds);
+  if (sure.length > 0) return joinNames(sure);
+  const maybe = nameOf(item.maybeChildIds).map((n) => `${n}'s`);
+  return `${item.child ?? "Some pupils"} (may be ${joinNames(maybe, "or")})`;
+}
+
+function joinNames(names: string[], conjunction = "and"): string {
+  if (names.length <= 1) return names.join("");
+  return `${names.slice(0, -1).join(", ")} ${conjunction} ${names.at(-1) ?? ""}`;
+}
+
+function fileLabel(file: { filename: string; subject: string | null }): string {
+  return file.subject === null ? file.filename : `${file.filename} (in "${file.subject}")`;
+}
+
+function byDay(lines: Line[]): Map<string, Line[]> {
+  const days = new Map<string, Line[]>();
+  for (const line of lines) days.set(line.date, [...(days.get(line.date) ?? []), line]);
+  return days;
+}
+
+function subheading(text: string): string {
+  return `<h2 style="font-family:&quot;Inter Tight&quot;, Arial, Helvetica, sans-serif;font-weight:bold;font-size:19px;line-height:1.3;margin:24px 0 8px">${escape(text)}</h2>`;
+}
+
+function list(lines: Line[]): string {
+  const items = lines.map((l) => `<li style="margin:0 0 4px">${escape(l.text)}</li>`).join("");
+  return `<ul style="margin:0 0 16px;padding-left:20px">${items}</ul>`;
+}
+
+function paragraph(text: string, colour = "#0b0c0c"): string {
+  return `<p style="margin:0 0 16px;color:${colour}">${escape(text)}</p>`;
+}

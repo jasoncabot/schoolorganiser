@@ -131,7 +131,7 @@ describe("/verify", () => {
     const householdId = state.status === "verified" ? state.householdId : "";
     const household = await householdStub(env, householdId);
     expect(await household.members()).toEqual([
-      { address: sender, joinedAt: "2025-10-07T09:00:00.000Z" },
+      { address: sender, joinedAt: "2025-10-07T09:00:00.000Z", digestStoppedAt: null },
     ]);
 
     const messages = await household.messages();

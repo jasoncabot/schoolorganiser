@@ -60,4 +60,5 @@ export function migrate(sql: SqlStorage): void {
     children_version: "INTEGER NOT NULL DEFAULT 0",
   });
   addMissingColumns(sql, "items", { child_ids: "TEXT", maybe_child_ids: "TEXT" });
+  addMissingColumns(sql, "members", { digest_stopped_at: "TEXT" });
 }

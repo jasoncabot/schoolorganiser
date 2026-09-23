@@ -11,7 +11,7 @@ forwarded mail ─▶ Email Routing ─▶ email()  src/email/inbound.ts
                                           └─ verified ─▶ Household agent: receive → process → items
 
 browser ─▶ static assets (/, /privacy, /render-pdf, /assets)
-        └▶ fetch()  src/web/routes.ts: /verify, /sign-in, /household, /join, /render-source
+        └▶ fetch()  src/web/routes.ts: /verify, /sign-in, /household, /join, /stop, /render-source
 ```
 
 ## Storage
@@ -30,6 +30,10 @@ browser ─▶ static assets (/, /privacy, /render-pdf, /assets)
 4. Checks every returned field and resolves dates (`src/extract/parse.ts`), maps children's names to ids, and stores items in one transaction.
 
 Messages record the extraction and children versions they were read with, so either changing re-reads them.
+
+## Digest
+
+`Household.digestScheduled()` runs at 6pm UK time each Sunday (`nextDigestTime()` in `src/email/digest.ts`), calls `sendDigest()` and schedules the next one. `digestEmail()` builds the email from stored items without side effects. Each member's copy has its own stop link (`src/web/stop.ts`, a signed token valid for a year).
 
 ## Retention
 

@@ -12,8 +12,10 @@ import {
   extractionRequest,
   type ExtractedItem,
 } from "./extract/prompt";
+import { digestEmail, nextDigestTime } from "./email/digest";
 import { migrate } from "./household-schema";
 import { addDays, MAIL_DAYS, purgeTime } from "./retention";
+import { stopLink } from "./web/stop";
 
 export { migrate };
 
@@ -45,14 +47,17 @@ export const MAX_ATTEMPTS = 3;
 const REREAD_DELAY_SECONDS = 60;
 /** Wait between attempts after a transient failure (e.g. Workers AI unavailable). */
 const RETRY_SECONDS = 5 * 60;
+/** A digest is skipped if the last one went out more recently than this. */
+const MIN_DIGEST_GAP_MS = 6 * 24 * 60 * 60 * 1000;
 
 /** One per household: members, children, messages, extracted items and their retention. */
 export class Household extends Agent<Env> {
   private schemaReady = false;
 
-  /** Arms the purge on start, so data stored before it existed is covered. */
+  /** Arms the purge and the digest on start, so households created before either are covered. */
   override async onStart(): Promise<void> {
     await this.armPurge();
+    await this.armDigest();
   }
 
   private get db(): SqlStorage {
@@ -185,6 +190,122 @@ export class Household extends Agent<Env> {
     if (existing.some((s) => s.time * 1000 <= dueMs)) return;
     for (const schedule of existing) await this.cancelSchedule(schedule.id);
     await this.schedule(new Date(dueMs), "purgeScheduled");
+  }
+
+  /** Scheduled callback: sends this week's digest by the real clock, then arms next week's. */
+  async digestScheduled(_payload: unknown, running?: { id: string }): Promise<void> {
+    try {
+      await this.sendDigest(systemDeps);
+    } finally {
+      await this.armDigest(running?.id);
+    }
+  }
+
+  /**
+   * Sends the digest to every member who hasn't stopped it. Skipped if one went out in the last
+   * six days, so a repeated schedule can't send twice. Never logs content or addresses.
+   */
+  async sendDigest(deps: Deps): Promise<{ sent: number }> {
+    const now = deps.clock.now();
+    const last = this.meta("digest_sent_at");
+    if (last !== null && now.getTime() - last < MIN_DIGEST_GAP_MS) return { sent: 0 };
+    const recipients = this.db
+      .exec<{ address: string }>(
+        "SELECT address FROM members WHERE digest_stopped_at IS NULL ORDER BY joined_at, address",
+      )
+      .toArray();
+    if (recipients.length === 0) return { sent: 0 };
+    const unreadable = this.db
+      .exec<{ id: number; filename: string; subject: string | null }>(
+        `SELECT u.rowid AS id, u.filename, m.subject FROM unreadable u
+         JOIN messages m ON m.id = u.message_id
+         WHERE u.mentioned_at IS NULL ORDER BY m.received_at, u.filename`,
+      )
+      .toArray();
+    const items = this.items();
+    const children = this.children();
+    let sent = 0;
+    for (const { address } of recipients) {
+      const link = await stopLink(this.env, address, this.name, now);
+      const email = digestEmail({
+        now,
+        items,
+        children,
+        unreadable,
+        appOrigin: this.env.APP_ORIGIN,
+        stopLink: link,
+      });
+      try {
+        await this.env.EMAIL.send({
+          to: address,
+          from: { email: this.env.SENDER_ADDRESS, name: "School Organiser" },
+          subject: email.subject,
+          text: email.text,
+          html: email.html,
+          headers: {
+            "List-Unsubscribe": `<${link}>`,
+            "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+          },
+        });
+        sent++;
+      } catch (error) {
+        console.error("digest send failed", { error: errorName(error) });
+      }
+    }
+    if (sent > 0) {
+      for (const { id } of unreadable) {
+        this.db.exec(
+          "UPDATE unreadable SET mentioned_at = ? WHERE rowid = ?",
+          now.toISOString(),
+          id,
+        );
+      }
+      this.setMeta("digest_sent_at", now.getTime());
+    }
+    console.log("digest sent", { sent, failed: recipients.length - sent });
+    return { sent };
+  }
+
+  /** When the next digest is scheduled, or null. */
+  async digestDue(): Promise<string | null> {
+    const schedule = (await this.listSchedules()).find((s) => s.callback === "digestScheduled");
+    return schedule === undefined ? null : new Date(schedule.time * 1000).toISOString();
+  }
+
+  /** Keeps one digest scheduled, for next Sunday evening. None when SCHEDULED_WORK is "0". */
+  private async armDigest(runningScheduleId?: string): Promise<void> {
+    if (this.env.SCHEDULED_WORK === "0") return;
+    const existing = (await this.listSchedules()).filter(
+      (s) => s.callback === "digestScheduled" && s.id !== runningScheduleId,
+    );
+    if (existing.length > 0) return;
+    await this.schedule(nextDigestTime(systemDeps.clock.now()), "digestScheduled");
+  }
+
+  /** Stops digests to one member. Returns false if they aren't a member. */
+  stopDigest(address: string, now: string): boolean {
+    return (
+      this.db.exec(
+        "UPDATE members SET digest_stopped_at = COALESCE(digest_stopped_at, ?) WHERE address = ?",
+        now,
+        address,
+      ).rowsWritten > 0
+    );
+  }
+
+  private meta(key: string): number | null {
+    return (
+      this.db.exec<{ value: number }>("SELECT value FROM meta WHERE key = ?", key).toArray()[0]
+        ?.value ?? null
+    );
+  }
+
+  private setMeta(key: string, value: number): void {
+    this.db.exec(
+      "INSERT INTO meta (key, value) VALUES (?, ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value",
+      key,
+      value,
+    );
   }
 
   private async processMessage(
@@ -372,11 +493,7 @@ export class Household extends Agent<Env> {
 
   /** Increases whenever children change, so stored mail can be re-read for relevance. */
   childrenVersion(): number {
-    return (
-      this.db
-        .exec<{ value: number }>("SELECT value FROM meta WHERE key = 'children_version'")
-        .toArray()[0]?.value ?? 0
-    );
+    return this.meta("children_version") ?? 0;
   }
 
   private async childrenChanged(): Promise<void> {
@@ -393,21 +510,26 @@ export class Household extends Agent<Env> {
   }
 
   /** Adds a verified address to the household. Digests go to every member. */
-  addMember(address: string, joinedAt: string): void {
+  async addMember(address: string, joinedAt: string): Promise<void> {
     this.db.exec(
       "INSERT OR IGNORE INTO members (address, joined_at) VALUES (?, ?)",
       address,
       joinedAt,
     );
+    await this.armDigest();
   }
 
-  members(): { address: string; joinedAt: string }[] {
+  members(): { address: string; joinedAt: string; digestStoppedAt: string | null }[] {
     return this.db
-      .exec<{ address: string; joined_at: string }>(
-        "SELECT address, joined_at FROM members ORDER BY joined_at, address",
+      .exec<{ address: string; joined_at: string; digest_stopped_at: string | null }>(
+        "SELECT address, joined_at, digest_stopped_at FROM members ORDER BY joined_at, address",
       )
       .toArray()
-      .map((m) => ({ address: m.address, joinedAt: m.joined_at }));
+      .map((m) => ({
+        address: m.address,
+        joinedAt: m.joined_at,
+        digestStoppedAt: m.digest_stopped_at,
+      }));
   }
 
   messages(): (ReceivedMail & {

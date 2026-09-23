@@ -6,6 +6,7 @@ import { join } from "./join";
 import { html, page } from "./html";
 import { sessionCookie } from "./session";
 import { confirmSignIn, signIn, signOut } from "./sign-in";
+import { stop } from "./stop";
 
 /** Worker-rendered pages. Static pages and assets are served by Workers static assets first. */
 export async function handleRequest(request: Request, env: Env, deps: Deps): Promise<Response> {
@@ -18,6 +19,7 @@ export async function handleRequest(request: Request, env: Env, deps: Deps): Pro
     return householdRoutes(request, env, deps);
   }
   if (url.pathname === "/join") return join(request, env, deps);
+  if (url.pathname === "/stop") return stop(request, env, deps);
   if (url.pathname === "/render-source") return renderSource(request, env, deps);
   if (url.pathname === "/__test/outbox") return testOutbox(url, env);
   return env.ASSETS.fetch(request);

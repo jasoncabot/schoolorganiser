@@ -42,10 +42,13 @@ Settled with the owner. Don't reopen without asking. Replace a decision when it 
 
 ## Digest
 
-- Sunday evening, UK time. Readable in about 30 seconds: grouped by day, child's name on each line, about 15 lines at most, then "plus N more".
-- A "Coming up" section for deadlines and payments in the next 3 weeks.
+- Sunday at 6pm UK time, scheduled per household (no global cron), at most one every 6 days.
+- Covers Monday to Sunday, grouped by day, child's name on each line. At most 15 item lines across both sections, then "Plus N more."
+- A "Coming up" section for deadlines and payments in the two weeks after that.
+- Items for "maybe" children read "Oak class (may be Ada's)". Repeats (same date, time, title and children) are shown once.
 - A quiet week sends "Nothing on this week."
-- Sent from a no-reply address; replies are dropped. Every digest has a one-click stop link and `List-Unsubscribe` headers. Stopping pauses the digest and keeps the data.
+- Each unreadable attachment is mentioned in one digest only.
+- Sent from a no-reply address; replies are dropped. Every digest has a stop link and one-click `List-Unsubscribe` headers (RFC 8058). Stopping stops digests to that address only; the household and its data stay.
 
 ## Privacy and retention
 

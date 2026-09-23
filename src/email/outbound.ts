@@ -1,4 +1,5 @@
 import { escape } from "../web/html";
+import { ukDate } from "../uk-time";
 
 // Emails we send. Plain and brief (see CLAUDE.md), styled per docs/design.md, always with a
 // plain-text part. We send from a no-reply address; replies are dropped.
@@ -7,26 +8,6 @@ export interface OutboundEmail {
   subject: string;
   text: string;
   html: string;
-}
-
-const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-
-/**
- * "Tue 30 Sep" in UK time. Built from numeric parts with our own names, because en-GB month
- * abbreviations vary between ICU versions ("Sep" vs "Sept").
- */
-export function ukDate(date: Date): string {
-  const parts = new Intl.DateTimeFormat("en-GB", {
-    timeZone: "Europe/London",
-    year: "numeric",
-    month: "numeric",
-    day: "numeric",
-  }).formatToParts(date);
-  const get = (type: string): number => Number(parts.find((p) => p.type === type)?.value);
-  const [year, month, day] = [get("year"), get("month"), get("day")];
-  const weekday = new Date(Date.UTC(year, month - 1, day)).getUTCDay();
-  return `${WEEKDAYS[weekday] ?? ""} ${String(day)} ${MONTHS[month - 1] ?? ""}`;
 }
 
 /** An email whose main job is one link: verification, sign-in, invitation. */
@@ -109,7 +90,14 @@ export function signInEmail(options: { link: string; appOrigin: string }): Outbo
   });
 }
 
-function layout(heading: string, body: string, appOrigin: string, hello: string): string {
+/** The shared email shell. `stopLink`, for the digest, adds a stop link to the footer. */
+export function layout(
+  heading: string,
+  body: string,
+  appOrigin: string,
+  hello: string,
+  stopLink?: string,
+): string {
   const font = `"Inter Tight", Arial, Helvetica, sans-serif`;
   return `<!doctype html>
 <html lang="en-GB">
@@ -126,7 +114,7 @@ function layout(heading: string, body: string, appOrigin: string, hello: string)
 <h1 style="font-family:${escape(font)};font-weight:bold;font-size:28px;line-height:1.2;margin:0 0 16px">${escape(heading)}</h1>
 ${body}
 <hr style="border:0;border-top:1px solid #b1b4b6;margin:24px 0 12px">
-<p style="margin:0;font-size:14px;color:#505a5f">Forward school emails to ${escape(hello)} · <a href="${escape(appOrigin)}/privacy" style="color:#1d70b8">Privacy</a></p>
+<p style="margin:0;font-size:14px;color:#505a5f">Forward school emails to ${escape(hello)} · <a href="${escape(appOrigin)}/privacy" style="color:#1d70b8">Privacy</a>${stopLink === undefined ? "" : ` · <a href="${escape(stopLink)}" style="color:#1d70b8">Stop these emails</a>`}</p>
 </div>
 </body>
 </html>`;
