@@ -1,4 +1,6 @@
 import { DurableObject } from "cloudflare:workers";
+import { systemDeps } from "./deps";
+import { purgeTime } from "./retention";
 
 /** Send at most one verification email per address per day. */
 export const VERIFICATION_RESEND_MS = 24 * 60 * 60 * 1000;
@@ -21,11 +23,28 @@ export interface PendingMail {
  * Maps the address to its household and holds mail that arrived before it was verified.
  */
 export class Address extends DurableObject<Env> {
-  private readonly sql = this.ctx.storage.sql;
+  private schemaReady = false;
 
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
-    this.sql.exec(`
+    // Mail held before retention existed has no alarm yet; set one if it needs it.
+    void ctx.blockConcurrencyWhile(async () => {
+      if ((await ctx.storage.getAlarm()) === null) await this.armPurge();
+    });
+  }
+
+  /** The address's storage, creating or upgrading its tables first if needed. */
+  private get sql(): SqlStorage {
+    if (!this.schemaReady) {
+      this.migrate();
+      this.schemaReady = true;
+    }
+    return this.ctx.storage.sql;
+  }
+
+  private migrate(): void {
+    const sql = this.ctx.storage.sql;
+    sql.exec(`
       CREATE TABLE IF NOT EXISTS address (
         id INTEGER PRIMARY KEY CHECK (id = 1),
         first_seen TEXT NOT NULL,
@@ -40,17 +59,70 @@ export class Address extends DurableObject<Env> {
         expires_at TEXT NOT NULL
       );
     `);
-    // Migration: addresses first seen before verification emails existed lack this column.
-    const columns = this.sql
+    // Addresses first seen before these columns existed lack them.
+    const columns = sql
       .exec<{ name: string }>("SELECT name FROM pragma_table_info('address')")
       .toArray()
       .map((c) => c.name);
     if (!columns.includes("verification_sent_at")) {
-      this.sql.exec("ALTER TABLE address ADD COLUMN verification_sent_at TEXT");
+      sql.exec("ALTER TABLE address ADD COLUMN verification_sent_at TEXT");
     }
     if (!columns.includes("sign_in_sent_at")) {
-      this.sql.exec("ALTER TABLE address ADD COLUMN sign_in_sent_at TEXT");
+      sql.exec("ALTER TABLE address ADD COLUMN sign_in_sent_at TEXT");
     }
+  }
+
+  /** Alarm: deletes expired held mail by the real clock. */
+  override async alarm(): Promise<void> {
+    await this.purge(systemDeps.clock.now());
+  }
+
+  /**
+   * Deletes held mail (and its R2 original) once it's PENDING_DAYS old. An address that never
+   * verified and has nothing left held is forgotten entirely, including the address itself.
+   * Otherwise the alarm is re-armed for the next expiry.
+   */
+  async purge(now: Date): Promise<{ deleted: number; forgotten: boolean }> {
+    const expired = this.sql
+      .exec<{ key: string }>("SELECT key FROM pending WHERE expires_at <= ?", now.toISOString())
+      .toArray();
+    for (const { key } of expired) {
+      await this.env.MAIL.delete(key);
+      this.sql.exec("DELETE FROM pending WHERE key = ?", key);
+    }
+    const state = this.lookup();
+    if (state.status === "unknown" || (state.status === "pending" && state.pending.length === 0)) {
+      await this.ctx.storage.deleteAlarm();
+      await this.ctx.storage.deleteAll();
+      this.schemaReady = false;
+      return { deleted: expired.length, forgotten: true };
+    }
+    await this.armPurge(true);
+    return { deleted: expired.length, forgotten: false };
+  }
+
+  /** When a purge should next run (the earliest held-mail expiry, rounded up to midnight), or null. */
+  purgeDue(): string | null {
+    const next = this.sql
+      .exec<{ next: string | null }>("SELECT MIN(expires_at) AS next FROM pending")
+      .one().next;
+    return next === null ? null : purgeTime(next).toISOString();
+  }
+
+  /**
+   * Sets the alarm for purgeDue(). Only moves it earlier, unless `replace` (after a purge, when
+   * the current alarm has just fired). No alarm when SCHEDULED_WORK is "0" (tests).
+   */
+  private async armPurge(replace = false): Promise<void> {
+    if (this.env.SCHEDULED_WORK === "0") return;
+    const due = this.purgeDue();
+    if (due === null) {
+      await this.ctx.storage.deleteAlarm();
+      return;
+    }
+    const dueMs = Date.parse(due);
+    const current = await this.ctx.storage.getAlarm();
+    if (replace || current === null || dueMs < current) await this.ctx.storage.setAlarm(dueMs);
   }
 
   lookup(): AddressState {
@@ -78,8 +150,8 @@ export class Address extends DurableObject<Env> {
     return { status: "pending", firstSeen: row.first_seen, pending };
   }
 
-  /** Records mail held until this address is verified. */
-  holdPending(mail: PendingMail): AddressState {
+  /** Records mail held until this address is verified, and makes sure it will expire. */
+  async holdPending(mail: PendingMail): Promise<AddressState> {
     this.sql.exec("INSERT OR IGNORE INTO address (id, first_seen) VALUES (1, ?)", mail.receivedAt);
     this.sql.exec(
       "INSERT OR IGNORE INTO pending (key, received_at, expires_at) VALUES (?, ?, ?)",
@@ -87,6 +159,7 @@ export class Address extends DurableObject<Env> {
       mail.receivedAt,
       mail.expiresAt,
     );
+    await this.armPurge();
     return this.lookup();
   }
 

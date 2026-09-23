@@ -37,6 +37,7 @@ We use it only to provide the service you signed up for:
 | Data                                                                      | Kept for                                                         |
 | ------------------------------------------------------------------------- | ---------------------------------------------------------------- |
 | Emails forwarded before you verify                                        | 7 days, then deleted                                             |
+| Your email address, if you never verify                                   | 7 days after the last email you forwarded, then forgotten        |
 | Original emails and attachments, and the text we read from them           | 90 days after we receive them, then deleted automatically        |
 | A temporary copy of a PDF attachment, while we turn its pages into images | Deleted as soon as that's done (at most 1 day)                   |
 | Extracted information (dates, costs, locations)                           | 90 days after the date it relates to, then deleted automatically |

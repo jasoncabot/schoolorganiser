@@ -11,7 +11,7 @@ import {
   extractionRequest,
   type ExtractedItem,
 } from "./extract/prompt";
-import { addDays, MAIL_DAYS } from "./retention";
+import { addDays, MAIL_DAYS, purgeTime } from "./retention";
 
 export interface ReceivedMail {
   id: string;
@@ -49,6 +49,11 @@ const RETRY_SECONDS = 5 * 60;
 export class Household extends Agent<Env> {
   private schemaReady = false;
 
+  /** On start, make sure data stored before retention existed has a purge scheduled. */
+  override async onStart(): Promise<void> {
+    await this.armPurge();
+  }
+
   private get db(): SqlStorage {
     if (!this.schemaReady) {
       migrate(this.ctx.storage.sql);
@@ -66,8 +71,9 @@ export class Household extends Agent<Env> {
       mail.receivedAt,
       mail.expiresAt,
     );
+    await this.armPurge();
     // Tests turn this off and call processPending() with test deps instead.
-    if (this.env.PROCESS_ON_RECEIVE !== "0") {
+    if (this.env.SCHEDULED_WORK !== "0") {
       await this.schedule(0, "processScheduled", undefined, { idempotent: true });
     }
   }
@@ -111,7 +117,74 @@ export class Household extends Agent<Env> {
         console.error("processing failed", { attempts, status, error: errorName(error) });
       }
     }
+    if (waiting.length > 0) await this.armPurge();
     return { processed: waiting.length, retry };
+  }
+
+  /**
+   * Scheduled callback: deletes whatever has expired, by the real clock. The SDK passes the
+   * running schedule, which is still listed until this returns, so re-arming must ignore it.
+   */
+  async purgeScheduled(_payload: unknown, running?: { id: string }): Promise<void> {
+    await this.purgeExpired(systemDeps.clock.now(), running?.id);
+  }
+
+  /**
+   * Deletes expired data (see docs/privacy.md): messages 90 days after receipt, with their text,
+   * unreadable-file notes and original in R2; items 90 days after their date. Then re-arms the
+   * purge for the next expiry. Never logs content: only counts.
+   */
+  async purgeExpired(
+    now: Date,
+    runningScheduleId?: string,
+  ): Promise<{ messages: number; items: number }> {
+    const cutoff = now.toISOString();
+    const expired = this.db
+      .exec<{ id: string; r2_key: string }>(
+        "SELECT id, r2_key FROM messages WHERE expires_at <= ?",
+        cutoff,
+      )
+      .toArray();
+    for (const message of expired) {
+      await this.env.MAIL.delete(message.r2_key);
+      this.db.exec("DELETE FROM unreadable WHERE message_id = ?", message.id);
+      this.db.exec("DELETE FROM messages WHERE id = ?", message.id);
+    }
+    const items = this.db.exec("DELETE FROM items WHERE expires_at <= ?", cutoff).rowsWritten;
+    await this.armPurge(runningScheduleId);
+    if (expired.length > 0 || items > 0) console.log("purged", { messages: expired.length, items });
+    return { messages: expired.length, items };
+  }
+
+  /** When a purge should next run (the earliest expiry, rounded up to midnight), or null. */
+  purgeDue(): string | null {
+    const next = this.db
+      .exec<{ next: string | null }>(
+        "SELECT MIN(expires_at) AS next FROM (SELECT expires_at FROM messages UNION ALL SELECT expires_at FROM items)",
+      )
+      .one().next;
+    return next === null ? null : purgeTime(next).toISOString();
+  }
+
+  /**
+   * Keeps exactly one purge scheduled, for purgeDue(). It only ever moves earlier: a purge that
+   * fires early finds nothing (or less) to delete and re-arms for the next expiry. Nothing is
+   * scheduled when SCHEDULED_WORK is "0" (tests).
+   */
+  private async armPurge(runningScheduleId?: string): Promise<void> {
+    if (this.env.SCHEDULED_WORK === "0") return;
+    const due = this.purgeDue();
+    const existing = (await this.listSchedules()).filter(
+      (s) => s.callback === "purgeScheduled" && s.id !== runningScheduleId,
+    );
+    if (due === null) {
+      for (const schedule of existing) await this.cancelSchedule(schedule.id);
+      return;
+    }
+    const dueMs = Date.parse(due);
+    if (existing.some((s) => s.time * 1000 <= dueMs)) return;
+    for (const schedule of existing) await this.cancelSchedule(schedule.id);
+    await this.schedule(new Date(dueMs), "purgeScheduled");
   }
 
   private async processMessage(
@@ -330,7 +403,7 @@ export class Household extends Agent<Env> {
        ON CONFLICT (key) DO UPDATE SET value = value + 1`,
     );
     // Re-read stored mail for the new children. The delay lets a few quick edits share one run.
-    if (this.env.PROCESS_ON_RECEIVE !== "0") {
+    if (this.env.SCHEDULED_WORK !== "0") {
       await this.schedule(REREAD_DELAY_SECONDS, "processScheduled", undefined, {
         idempotent: true,
       });

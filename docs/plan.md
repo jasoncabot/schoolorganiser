@@ -8,8 +8,8 @@ Each step ships with tests (see `testing.md`) and deploys via Workers Builds onc
 4. **Verification (done):** signed link, holding pending mail, promoting it on verify.
 5. **Processing (done):** MIME parsing, `toMarkdown` for PDF, DOCX and images, PPTX via `fflate`, recording unreadable files, AI extraction into `items`.
 6. **Sign-in and children (done):** Browser Run page images for PDFs; magic-link sign-in; a page to add children (display name, school, year group, class) and household members; pass the children to extraction so the AI marks which child each item is for; re-read stored mail when children change.
-7. **Retention (next):** `expires_at` on every row, and a single purge alarm re-armed to the next expiry. Test with the injected clock and `runDurableObjectAlarm`, and check that the R2 lifecycle rules are in place.
-8. **Digest:** Sunday schedule, a short email built from next week's items, sent to all members. Only items for the household's children and whole-school items.
+7. **Retention (done):** `expires_at` on every row, and a single purge alarm re-armed to the next expiry. Test with the injected clock and `runDurableObjectAlarm`, and check that the R2 lifecycle rules are in place.
+8. **Digest (next):** Sunday schedule, a short email built from next week's items, sent to all members. Only items for the household's children and whole-school items.
 9. **Rest of the web page:** Tailwind v4 in the style set out in `design.md`; upcoming items; pause digest; delete data. (The privacy page is already live.)
 10. **End to end:** Playwright journey from forward to verify, sign-in, letter and digest.
 11. **Owner trial:** the owner forwards real mail from both schools for a few weeks, then we tune the extraction and the digest copy.

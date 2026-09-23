@@ -9,7 +9,7 @@ describe("Address migrations", () => {
     const result = await runInDurableObject(stub, (_instance, state) => {
       // Recreate the original (plan step 3) layout with a held message.
       state.storage.sql.exec(`
-        DROP TABLE address;
+        DROP TABLE IF EXISTS address;
         CREATE TABLE address (
           id INTEGER PRIMARY KEY CHECK (id = 1),
           first_seen TEXT NOT NULL,

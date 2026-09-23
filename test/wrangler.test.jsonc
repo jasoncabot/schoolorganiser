@@ -14,7 +14,7 @@
     "SIGNING_KEY": "test-signing-key-not-a-secret",
     "PRIVACY_FORWARD_TO": "privacy-owner@example.com",
     "E2E_TEST_ROUTES": "1",
-    "PROCESS_ON_RECEIVE": "0",
+    "SCHEDULED_WORK": "0",
   },
   "services": [
     { "binding": "AI", "service": "schoolorganiser-stubs", "entrypoint": "AiStub" },
