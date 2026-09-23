@@ -30,7 +30,8 @@ parent ──forward──▶ Email Routing (hello@school.jasoncabot.com)
 - **Household Agent:** one per household, keyed by household ID. It holds members, children, schools, messages, extracted items and digest history.
 - **Address lookup:** a small Durable Object per email address (`idFromName(normalisedEmail)`) that stores its household ID and verification state. v1 identifies the parent from the manual forwarder's address. Keep the sender-identification step separate so automatic forwarding can plug in later.
 - **R2 bucket:** holds raw mail and attachments. Lifecycle rules: the `pending/` prefix expires after 7 days and `mail/` after 90 days.
-- **Workers AI:** `toMarkdown` handles PDF and DOCX attachments. An LLM does extraction and digest writing, using the cheapest current model that extracts correctly (see `decisions.md`).
+- **Attachments:** PDF, DOCX and images go through `env.AI.toMarkdown`. `toMarkdown` doesn't support PowerPoint, so PPTX is unzipped with `fflate` to read the text and notes from `ppt/slides/*.xml` and `ppt/notesSlides/*.xml`, and its embedded images go through `toMarkdown`. `.ppt`/`.doc` and other unreadable formats are recorded as unreadable and mentioned once in the digest.
+- **Workers AI:** An LLM does extraction and digest writing, using the cheapest current model that extracts correctly (see `decisions.md`).
 - **Email Service:** sends verification emails, magic links and digests from a no-reply address on `school.jasoncabot.com`. The domain needs onboarding for sending (SPF/DKIM/DMARC records). Digests carry `List-Unsubscribe` headers and a signed one-click stop link.
 - **Privacy inbox:** `privacy@school.jasoncabot.com` routes to the same Worker. It applies the same SPF/DKIM/DMARC gate and then forwards to the owner with `message.forward()`. The owner's address is a Workers Secret (`PRIVACY_FORWARD_TO`) and must be a verified Email Routing destination. The public address is fine in the repo because the privacy page shows it anyway.
 - **Retention:** there's no daily clean-up job. Each row stores an `expires_at`: 90 days after receipt for message text, and 90 days after the item's date for items. The Household Agent keeps a single purge schedule (a Durable Object alarm, via `this.schedule(date)`), set to the earliest `expires_at`. When it fires, it deletes everything that has expired, then re-arms for the next earliest expiry, or sets nothing if the household is empty. Writing a new row only moves the schedule earlier, never later. Expiry times are rounded up to the next day so nearby rows share one wake-up. A quiet household wakes only when something is actually due to be deleted. R2 lifecycle rules handle the originals.
@@ -41,6 +42,8 @@ parent ──forward──▶ Email Routing (hello@school.jasoncabot.com)
 `date`, `time?`, `kind` (event, deadline, payment, kit, early start/late finish, closure, other), `title`, `cost?`, `location?`, `school`, `child?`, `source_message_id`, `confidence`.
 
 ## Implementation notes
+
+- All time, IDs and randomness come from an injected `Deps` object (`clock`, `ids`, `random`), never from globals. This is what keeps the tests deterministic (see `testing.md`).
 
 - Europe/London changes offset (GMT/BST). The Sunday schedule must fire at the right local time all year round.
 - SPF/DKIM/DMARC results come from the headers Email Routing adds. Confirm the exact header against current docs.

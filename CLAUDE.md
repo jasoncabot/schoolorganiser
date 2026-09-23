@@ -12,6 +12,8 @@ School Organiser: parents forward school emails to one address. Each week they g
 - `docs/architecture.md`: how it fits together
 - `docs/plan.md`: build order
 - `docs/open-questions.md`: things still to decide with the owner
+- `docs/testing.md`: how we test. Determinism comes first.
+- `docs/design.md`: web UI style
 - `docs/privacy.md`: the privacy notice. Any change to what we store or how long we keep it must update this too.
 
 ## Rules
@@ -20,6 +22,7 @@ School Organiser: parents forward school emails to one address. Each week they g
 - **Cloudflare only.** Don't use third-party services. npm libraries are fine where Cloudflare's own docs use them (e.g. `postal-mime`).
 - **Don't invent features.** If something isn't in `docs/vision.md` or `docs/decisions.md`, add it to `docs/open-questions.md` and ask the owner.
 - **Check current docs, not memory.** Cloudflare products (especially Email Service, which is in beta, and the Agents SDK) change quickly. Use the Cloudflare skills and the Cloudflare docs MCP (set up in `.claude/settings.json`) before relying on what you remember about an API.
+- **Deterministic tests.** Never read the clock or randomness directly: use the injected `Deps`. Never let tests reach Cloudflare's network: AI and email are stubbed.
 - Record every new decision in `docs/decisions.md` (one line, dated).
 
 ## Cloudflare skills
@@ -28,7 +31,7 @@ This project enables the `cloudflare@cloudflare` plugin from `cloudflare/skills`
 
 ## Stack
 
-TypeScript, Cloudflare Workers, Agents SDK (a SQLite-backed Durable Object per household), Workers AI, R2, Email Routing (inbound) and Email Service (outbound). Tests use Vitest with `@cloudflare/vitest-pool-workers`. Deploys go through Workers Builds on push to `main`.
+TypeScript, Cloudflare Workers, Agents SDK (a SQLite-backed Durable Object per household), Workers AI, R2, Email Routing (inbound) and Email Service (outbound). The web UI uses Tailwind CSS v4. Tests use Vitest with `@cloudflare/vitest-plugin` and Playwright; linting uses ESLint and Prettier. Deploys go through Workers Builds on push to `main`, after `npm run check`.
 
 ## Conventions
 

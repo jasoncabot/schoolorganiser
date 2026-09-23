@@ -30,3 +30,9 @@ Settled with the owner. Add new ones at the bottom with a date.
 | 2026-09-23 | Retention: raw mail, attachments and their extracted text are deleted 90 days after receipt. Extracted items are deleted 90 days after the date they relate to. Children, schools and member addresses are kept until the parent deletes them. |
 | 2026-09-23 | Service logs: Workers Logs, 7 days (the fixed retention on the Paid plan). No Logpush or other long-term log storage. |
 | 2026-09-23 | Retention is enforced by per-household Durable Object alarms set to the next `expires_at` (rounded up to the day, re-armed after each purge). No daily clean-up job, which keeps the cost down for low-volume households. |
+| 2026-09-23 | Testing: Vitest with `@cloudflare/vitest-plugin` (Miniflare). AI and email-sending bindings are replaced by local stub Workers. No remote calls in tests. Details in `testing.md`. |
+| 2026-09-23 | Determinism: clock, IDs and randomness are injected, and signing keys are fixed in tests. The suite runs concurrently and is shuffled with fixed seeds. |
+| 2026-09-23 | End-to-end tests: Playwright against `wrangler dev --env e2e`, with inbound mail via `/cdn-cgi/local/email` and outbound read from the stub outbox. |
+| 2026-09-23 | Lint: ESLint (flat config, `typescript-eslint` strict type-checked) plus Prettier and strict `tsc`. |
+| 2026-09-23 | Attachments: PDF, DOCX and images go through Workers AI `toMarkdown`. PPTX is unzipped in the Worker with `fflate` to read slide text and notes, and its images go through `toMarkdown`. `.ppt`/`.doc` can't be read: we record them and mention them once in the digest. |
+| 2026-09-23 | Web UI: Tailwind CSS v4, in a plain GOV.UK-like style without GOV.UK branding. Details in `design.md`. |
