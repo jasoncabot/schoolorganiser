@@ -23,27 +23,27 @@ export async function handleInbound(
 ): Promise<void> {
   const mailbox = mailboxFor(message.to);
   const auth = cloudflareAuthResults(message.headers);
+  const verdicts = auth && { spf: auth.spf, dkim: auth.dkim, dmarc: auth.dmarc };
   const log = (outcome: string): void => {
-    console.log("inbound email", { mailbox, outcome, auth });
+    console.log("inbound email", { mailbox, outcome, auth: verdicts });
   };
 
   if (mailbox === null) {
     log("dropped: unknown mailbox");
     return;
   }
-  if (!senderIsAuthenticated(auth)) {
+  const sender = senderAddress(message.headers);
+  if (sender === null) {
+    log("dropped: no single From address");
+    return;
+  }
+  if (!senderIsAuthenticated(auth, sender.slice(sender.lastIndexOf("@") + 1))) {
     log("dropped: sender not authenticated");
     return;
   }
   if (mailbox === "privacy") {
     await message.forward(env.PRIVACY_FORWARD_TO);
     log("forwarded");
-    return;
-  }
-
-  const sender = senderAddress(message.headers);
-  if (sender === null) {
-    log("dropped: no single From address");
     return;
   }
   log(await storeForwardedMail(message, env, deps, sender));

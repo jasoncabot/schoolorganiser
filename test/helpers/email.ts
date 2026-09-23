@@ -45,3 +45,9 @@ export const CLOUDFLARE_PASS: [string, string] = [
   "ARC-Authentication-Results",
   "i=1; mx.cloudflare.net; dkim=pass header.d=example.com header.s=s1 header.b=abc; dmarc=pass header.from=example.com policy.dmarc=reject; spf=pass (mx.cloudflare.net: domain of parent@example.com designates 192.0.2.1 as permitted sender) smtp.mailfrom=parent@example.com; arc=none smtp.remote-ip=192.0.2.1",
 ];
+
+/** A Microsoft 365 sender whose custom domain has no DMARC record and no custom DKIM key. */
+export const MICROSOFT_365_NO_DMARC: [string, string] = [
+  "ARC-Authentication-Results",
+  "i=1; mx.cloudflare.net; dkim=pass header.d=clubexample.onmicrosoft.com header.s=selector1-clubexample-onmicrosoft-com header.b=xyz; dmarc=none header.from=club.example.org; spf=pass (mx.cloudflare.net: domain of leader@club.example.org designates 192.0.2.10 as permitted sender) smtp.mailfrom=leader@club.example.org; arc=none smtp.remote-ip=192.0.2.10",
+];

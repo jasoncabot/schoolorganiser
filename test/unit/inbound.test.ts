@@ -4,7 +4,7 @@ import { addressStub, householdStub } from "../../src/bindings";
 import { handleInbound, mailboxFor } from "../../src/email/inbound";
 import { sha256Hex } from "../../src/email/sender";
 import { testDeps } from "../helpers/deps";
-import { CLOUDFLARE_PASS, fakeMessage } from "../helpers/email";
+import { CLOUDFLARE_PASS, fakeMessage, MICROSOFT_365_NO_DMARC } from "../helpers/email";
 
 const HELLO = "hello@school.example.com";
 const PRIVACY = "privacy@school.example.com";
@@ -40,10 +40,31 @@ describe("privacy@", () => {
     expect(message.forwarded).toEqual([env.PRIVACY_FORWARD_TO]);
   });
 
+  it("forwards mail from a domain with no DMARC record when SPF aligns", async () => {
+    const message = fakeMessage({
+      to: PRIVACY,
+      headers: [MICROSOFT_365_NO_DMARC, ["From", "Leader <leader@club.example.org>"]],
+    });
+    await handleInbound(message, env, testDeps("privacy no dmarc"));
+    expect(message.forwarded).toEqual([env.PRIVACY_FORWARD_TO]);
+  });
+
+  it("drops mail from a domain with no DMARC record when nothing aligns", async () => {
+    const message = fakeMessage({
+      to: PRIVACY,
+      headers: [MICROSOFT_365_NO_DMARC, ["From", "Someone <someone@other.example.com>"]],
+    });
+    await handleInbound(message, env, testDeps("privacy no dmarc unaligned"));
+    expect(message.forwarded).toEqual([]);
+  });
+
   it("drops unauthenticated mail", async () => {
     const message = fakeMessage({
       to: PRIVACY,
-      headers: [["Authentication-Results", "mx.cloudflare.net; spf=fail; dkim=none; dmarc=fail"]],
+      headers: [
+        ["Authentication-Results", "mx.cloudflare.net; spf=fail; dkim=none; dmarc=fail"],
+        ["From", "x@example.com"],
+      ],
     });
     await handleInbound(message, env, testDeps("privacy fail"));
     expect(message.forwarded).toEqual([]);
