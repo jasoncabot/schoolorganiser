@@ -32,7 +32,9 @@ parent ──forward──▶ Email Routing (hello@school.jasoncabot.com)
 - **R2 bucket:** holds raw mail and attachments. Lifecycle rules: the `pending/` prefix expires after 7 days and `mail/` after 90 days.
 - **Workers AI:** `toMarkdown` handles PDF and DOCX attachments. An LLM does extraction and digest writing, using the cheapest current model that extracts correctly (see `decisions.md`).
 - **Email Service:** sends verification emails, magic links and digests from a no-reply address on `school.jasoncabot.com`. The domain needs onboarding for sending (SPF/DKIM/DMARC records). Digests carry `List-Unsubscribe` headers and a signed one-click stop link.
-- **Workers Secrets:** holds the HMAC key for verification and magic links. Nothing secret goes in the repo.
+- **Privacy inbox:** `privacy@school.jasoncabot.com` routes to the same Worker. It applies the same SPF/DKIM/DMARC gate and then forwards to the owner with `message.forward()`. The owner's address is a Workers Secret (`PRIVACY_FORWARD_TO`) and must be a verified Email Routing destination. The public address is fine in the repo because the privacy page shows it anyway.
+- **Retention jobs:** a daily schedule in each Household Agent deletes extracted text 90 days after receipt and items 90 days after their date. R2 lifecycle rules handle the originals.
+- **Workers Secrets:** holds the HMAC key for verification and magic links, and `PRIVACY_FORWARD_TO`. Nothing secret goes in the repo.
 
 ## Extracted item (proposed shape)
 

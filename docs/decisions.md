@@ -26,3 +26,6 @@ Settled with the owner. Add new ones at the bottom with a date.
 | 2026-09-23 | A quiet week still sends one line: "Nothing on this week." |
 | 2026-09-23 | Model choice: the cheapest Workers AI model that extracts correctly. Only move up if it misses things. Record the model in use here. |
 | 2026-09-23 | We send from a no-reply address. Replies are dropped and logged. The footer points to the forwarding address and the settings page. |
+| 2026-09-23 | Privacy contact is `privacy@school.jasoncabot.com`. The Worker applies the SPF/DKIM/DMARC gate and forwards to the owner's address, which is held in the `PRIVACY_FORWARD_TO` Workers Secret and never committed. |
+| 2026-09-23 | Retention: raw mail, attachments and their extracted text are deleted 90 days after receipt. Extracted items are deleted 90 days after the date they relate to. Children, schools and member addresses are kept until the parent deletes them. |
+| 2026-09-23 | Service logs: Workers Logs, 7 days (the fixed retention on the Paid plan). No Logpush or other long-term log storage. |
