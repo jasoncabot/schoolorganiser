@@ -126,6 +126,29 @@ describe("sending the digest", () => {
     expect(forged.status).toBe(400);
   });
 
+  it("puts each email's notes in one digest, and only from the last fortnight", async () => {
+    const address = "digest-notes@example.com";
+    const stub = await household("notes", [address]);
+    await runInDurableObject(stub, (_instance: Household, state) => {
+      const sql = state.storage.sql;
+      sql.exec(
+        `INSERT INTO messages (id, r2_key, received_at, expires_at, status, subject)
+         VALUES ('old', 'mail/x/old.eml', '2025-09-01T08:00:00.000Z', '2025-11-30T08:00:00.000Z', 'done', 'Fwd: Old')`,
+      );
+      sql.exec(
+        `INSERT INTO notes (id, message_id, text, child_ids, maybe_child_ids) VALUES
+         ('m1-n0', 'm1', 'Judo club on Wednesdays, £72 for 9 lessons.', NULL, '[]'),
+         ('old-n0', 'old', 'An old reminder.', NULL, '[]')`,
+      );
+    });
+    await send(stub, SUNDAY, "notes");
+    await send(stub, NEXT_SUNDAY, "notes");
+    const [first, second] = await sentTo(address);
+    expect(first?.text).toContain("Worth knowing\n- Judo club on Wednesdays, £72 for 9 lessons.\n");
+    expect(first?.text).not.toContain("An old reminder.");
+    expect(second?.text).not.toContain("Worth knowing");
+  });
+
   it("sends nothing when every member has stopped", async () => {
     const address = "digest-none@example.com";
     const stub = await household("none", [address]);

@@ -3,7 +3,7 @@
 //   CLOUDFLARE_ACCOUNT_ID=… CLOUDFLARE_API_TOKEN=… npm run eval:extraction -- [model…]
 import { readdirSync, readFileSync } from "node:fs";
 import { extractionRequest } from "../src/extract/prompt";
-import { parseExtraction } from "../src/extract/parse";
+import { parseExtraction, parseNotes } from "../src/extract/parse";
 
 interface Expected {
   date: string;
@@ -16,6 +16,8 @@ interface Letter {
   subject: string;
   text: string;
   expected: Expected[];
+  /** Words that must appear in some note, e.g. a club's price. */
+  noteIncludes?: string[];
 }
 
 const DEFAULT_MODELS = [
@@ -56,6 +58,8 @@ for (const model of models) {
   let costsTotal = 0;
   let failures = 0;
   let neurons = 0;
+  let notesRight = 0;
+  let notesTotal = 0;
   const notes: string[] = [];
   for (const letter of Array.from({ length: repeat }, () => letters).flat()) {
     const response = await fetch(
@@ -80,6 +84,14 @@ for (const model of models) {
         `${letter.name}: unusable response ${JSON.stringify(body.errors ?? body.result).slice(0, 160)}`,
       );
       continue;
+    }
+    const foundNotes = parseNotes(body.result);
+    if (process.env.SHOW_NOTES === "1")
+      for (const n of foundNotes) notes.push(`${letter.name}: note "${n.text}"`);
+    for (const word of letter.noteIncludes ?? []) {
+      notesTotal++;
+      if (foundNotes.some((n) => n.text.includes(word))) notesRight++;
+      else notes.push(`${letter.name}: no note mentions "${word}"`);
     }
     const unmatched = [...items];
     for (const exp of letter.expected) {
@@ -109,7 +121,7 @@ for (const model of models) {
       notes.push(`${letter.name}: unexpected ${w.date} ${w.kind} "${w.title}"`);
   }
   console.log(
-    `\n${model}\n  found ${String(found)}/${String(expectedTotal)}, wrong-date extras ${String(extra)}, costs ${String(costsRight)}/${String(costsTotal)}, unusable ${String(failures)}, neurons ${neurons.toFixed(1)}`,
+    `\n${model}\n  found ${String(found)}/${String(expectedTotal)}, wrong-date extras ${String(extra)}, costs ${String(costsRight)}/${String(costsTotal)}, notes ${String(notesRight)}/${String(notesTotal)}, unusable ${String(failures)}, neurons ${neurons.toFixed(1)}`,
   );
   for (const n of notes) console.log(`   - ${n}`);
 }

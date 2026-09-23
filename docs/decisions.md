@@ -38,10 +38,12 @@ Settled with the owner. Don't reopen without asking. Replace a decision when it 
 
 - Model: `@cf/mistralai/mistral-small-3.1-24b-instruct`, JSON mode, chosen as the cheapest that extracted every item in the evaluation (`npm run eval:extraction`).
 - PDFs: page images from Browser Run's `screenshot` Quick Action (at most 10 pages per message) plus the text layer from `unpdf`, laid out column by column. No Workers AI model accepts a PDF file. toMarkdown is the fallback for scans.
+- Attachments marked inline are read too (iPhone Mail forwards documents that way); only inline images under 50 KB are skipped as logos. Each message records every attachment as read, skipped or unreadable, shown in the activity log.
 - Word, Excel, images and HTML go through Workers AI toMarkdown. PowerPoint is unzipped with `fflate`. `.txt` and `.ics` are read as text. Anything else is recorded as unreadable and mentioned once in the digest.
 - The model returns day, month and year as written. Code fills in a missing year: the next occurrence on or after 31 days before the email was sent.
 - The model also returns the weekday when the letter states one. If it doesn't match the date, the date is kept but shown as "(check the date)" in the digest and on the web page; code never moves it, because a misread date moved elsewhere could hide a real event.
-- Item kinds: event, deadline, payment, kit, timing, closure, other. Weekly routines are skipped unless they start or change on a date.
+- Item kinds: event, deadline, payment, kit, timing, closure, other. Weekly routines are skipped unless they start or change on a date (a weekly club gives its first session and any changes, not every session).
+- The model also returns up to 5 "notes" per email: points worth knowing without a firm date (clubs and activities, things to buy, rules and reminders, contacts), one sentence each, at most 25 words, one per topic. They never include bank account numbers, sort codes or payment references. Notes use the same children matching as items.
 - Processing is retried 5 minutes apart, up to 3 attempts. Bumping `EXTRACTION_VERSION` re-reads stored mail.
 
 ## Digest
@@ -49,6 +51,7 @@ Settled with the owner. Don't reopen without asking. Replace a decision when it 
 - Sunday at 6pm UK time, scheduled per household (no global cron), at most one every 6 days.
 - Covers Monday to Sunday, grouped by day, child's name on each line. At most 15 item lines across both sections, then "Plus N more", linking to the upcoming page.
 - A "Coming up" section for deadlines and payments in the two weeks after that.
+- A "Worth knowing" section: notes from emails received in the last 14 days not yet in a digest, at most 5, then "Plus N more". Each email's notes appear in one digest only. The Coming up page lists notes from the last 30 days.
 - Items for "maybe" children read "Oak class (may be Ada's)". Repeats (same date, time, title and children) are shown once.
 - A quiet week sends "Nothing on this week."
 - Each unreadable attachment, and each forwarded email we gave up on after 3 attempts, is mentioned in one digest only.

@@ -9,11 +9,17 @@ import {
   type ChildInput,
 } from "../children";
 import type { Deps } from "../deps";
-import { childNames, describeItem, relevantItems } from "../email/digest";
+import {
+  childNames,
+  describeItem,
+  describeNote,
+  relevantItems,
+  relevantNotes,
+} from "../email/digest";
 import { invitationEmail, sendEmail } from "../email/outbound";
 import { addDays } from "../retention";
 import { signToken } from "../tokens";
-import { MAX_ATTEMPTS, type Activity } from "../household";
+import { MAX_ATTEMPTS, PAGE_NOTE_DAYS, type Activity } from "../household";
 import { dayLabel, londonDate, ukDate, ukDateTime } from "../uk-time";
 import { html, page, type Html } from "./html";
 import { clearSessionCookie, readSession, sameOrigin, type Session } from "./session";
@@ -275,9 +281,11 @@ function activityRow(a: Activity): Html {
   let detail: string;
   if (a.status === "done") {
     tag = html`<span class="tag tag-done">Done</span>`;
+    const outcome = { read: "read", skipped: "skipped as a logo", unreadable: "couldn't read" };
+    const files = (a.attachments ?? []).map((f) => `${f.filename} (${outcome[f.outcome]})`);
     detail = [
-      `${plural(a.items, "item")} found.`,
-      a.unreadable.length > 0 ? `Couldn't read ${a.unreadable.join(", ")}.` : "",
+      `${plural(a.items, "item")} and ${plural(a.notes, "note")} found.`,
+      files.length > 0 ? `Attachments: ${files.join(", ")}.` : "",
       a.rereading ? "Reading again after a change." : "",
     ]
       .filter((p) => p !== "")
@@ -311,28 +319,51 @@ function activityRow(a: Activity): Html {
 /** Every relevant item from today on, grouped by day. */
 async function upcoming(env: Env, deps: Deps, session: Session): Promise<Response> {
   const household = await householdStub(env, session.householdId);
-  const [items, children] = await Promise.all([household.items(), household.children()]);
-  const today = londonDate(deps.clock.now());
+  const [items, notes, children] = await Promise.all([
+    household.items(),
+    household.notes(),
+    household.children(),
+  ]);
+  const now = deps.clock.now();
+  const today = londonDate(now);
   const names = childNames(children);
-  const days = new Map<string, Html[]>();
-  for (const item of relevantItems(items).filter((i) => i.date >= today)) {
-    const source = item.source;
+  const line = (
+    text: string,
+    messageId: string,
+    source: { subject: string | null; receivedAt: string } | null,
+  ): Html => {
     const from =
       source === null
         ? html`From an email we no longer keep`
         : html`From
-            <a href="/household/emails/${item.messageId}"
+            <a href="/household/emails/${messageId}"
               >${source.subject ?? `an email received ${ukDate(new Date(source.receivedAt))}`}</a
             >`;
-    const line = html`<li>
-      ${describeItem(item, names)}<br />
+    return html`<li>
+      ${text}<br />
       <span class="text-muted">${from}</span>
     </li>`;
-    days.set(item.date, [...(days.get(item.date) ?? []), line]);
+  };
+  const days = new Map<string, Html[]>();
+  for (const item of relevantItems(items).filter((i) => i.date >= today)) {
+    days.set(item.date, [
+      ...(days.get(item.date) ?? []),
+      line(describeItem(item, names), item.messageId, item.source),
+    ]);
   }
+  const noteCutoff = addDays(now, -PAGE_NOTE_DAYS).toISOString();
+  const recentNotes = relevantNotes(notes.filter((n) => n.source.receivedAt >= noteCutoff));
+  const worthKnowing =
+    recentNotes.length === 0
+      ? html``
+      : html`<h2>Worth knowing</h2>
+          <p class="hint">From emails in the last ${String(PAGE_NOTE_DAYS)} days, newest first.</p>
+          <ul class="list">
+            ${recentNotes.map((n) => line(describeNote(n, names), n.messageId, n.source))}
+          </ul>`;
   const hello = `hello@${new URL(env.APP_ORIGIN).hostname}`;
   const body =
-    days.size === 0
+    days.size === 0 && recentNotes.length === 0
       ? html`<p>Nothing coming up yet. Forward school emails to <strong>${hello}</strong>.</p>`
       : [...days].map(
           ([date, lines]) =>
@@ -345,7 +376,7 @@ async function upcoming(env: Env, deps: Deps, session: Session): Promise<Respons
     "Coming up",
     html`<p><a href="/household">Back</a></p>
       <h1>Coming up</h1>
-      ${body}`,
+      ${worthKnowing} ${body}`,
   );
 }
 

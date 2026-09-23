@@ -2,8 +2,8 @@ import { Agent } from "agents";
 import { currentYearGroup, yearGroupLabel, type Child, type ChildInput } from "./children";
 import { systemDeps, type Deps } from "./deps";
 import { runModel } from "./extract/ai";
-import { readMessage, type Unreadable } from "./extract/message";
-import { parseExtraction } from "./extract/parse";
+import { readMessage, type AttachmentOutcome, type Unreadable } from "./extract/message";
+import { parseExtraction, parseNotes } from "./extract/parse";
 import { relevance } from "./extract/relevance";
 import { pdfRenderer } from "./extract/render";
 import {
@@ -11,6 +11,7 @@ import {
   EXTRACTION_VERSION,
   extractionRequest,
   type ExtractedItem,
+  type ExtractedNote,
 } from "./extract/prompt";
 import { digestEmail, nextDigestTime } from "./email/digest";
 import { sendEmail } from "./email/outbound";
@@ -42,7 +43,9 @@ export interface Activity {
   rereading: boolean;
   lastError: string | null;
   items: number;
-  unreadable: string[];
+  notes: number;
+  /** Null for emails read before attachments were recorded. */
+  attachments: AttachmentOutcome[] | null;
 }
 
 export type MessageStatus = "new" | "done" | "failed";
@@ -62,6 +65,18 @@ export interface StoredItem extends Omit<ExtractedItem, "forChildren" | "maybeCh
   source: { subject: string | null; receivedAt: string } | null;
 }
 
+/** A point worth knowing with no firm date, e.g. a club on offer. */
+export interface StoredNote {
+  id: string;
+  messageId: string;
+  text: string;
+  school: string | null;
+  child: string | null;
+  childIds: string[] | null;
+  maybeChildIds: string[];
+  source: { subject: string | null; receivedAt: string };
+}
+
 export interface StoredMessage {
   id: string;
   subject: string | null;
@@ -76,6 +91,10 @@ export const MAX_ATTEMPTS = 3;
 const REREAD_DELAY_SECONDS = 60;
 /** Wait between attempts after a transient failure (e.g. Workers AI unavailable). */
 const RETRY_SECONDS = 5 * 60;
+/** Notes from emails older than this aren't put in the digest; they're on the web page. */
+const DIGEST_NOTE_DAYS = 14;
+/** The Coming up page shows notes from emails received this recently. */
+export const PAGE_NOTE_DAYS = 30;
 /** A digest is skipped if the last one went out more recently than this. */
 const MIN_DIGEST_GAP_MS = 6 * 24 * 60 * 60 * 1000;
 
@@ -184,6 +203,7 @@ export class Household extends Agent<Env> {
     for (const message of expired) {
       await this.env.MAIL.delete(message.r2_key);
       this.db.exec("DELETE FROM unreadable WHERE message_id = ?", message.id);
+      this.db.exec("DELETE FROM notes WHERE message_id = ?", message.id);
       this.db.exec("DELETE FROM messages WHERE id = ?", message.id);
     }
     const items = this.db.exec("DELETE FROM items WHERE expires_at <= ?", cutoff).rowsWritten;
@@ -261,6 +281,10 @@ export class Household extends Agent<Env> {
       .toArray();
     const items = this.items();
     const children = this.children();
+    const noteCutoff = addDays(now, -DIGEST_NOTE_DAYS).toISOString();
+    const notes = this.notes().filter(
+      (n) => !this.notesMentioned(n.messageId) && n.source.receivedAt >= noteCutoff,
+    );
     let sent = 0;
     for (const { address } of recipients) {
       const link = await stopLink(this.env, address, this.name, now);
@@ -270,6 +294,7 @@ export class Household extends Agent<Env> {
         children,
         unreadable,
         failed: failed.map((m) => ({ receivedAt: m.received_at })),
+        notes,
         appOrigin: this.env.APP_ORIGIN,
         stopLink: link,
       });
@@ -290,6 +315,13 @@ export class Household extends Agent<Env> {
           "UPDATE unreadable SET mentioned_at = ? WHERE rowid = ?",
           now.toISOString(),
           id,
+        );
+      }
+      for (const messageId of new Set(notes.map((n) => n.messageId))) {
+        this.db.exec(
+          "UPDATE messages SET notes_mentioned_at = ? WHERE id = ?",
+          now.toISOString(),
+          messageId,
         );
       }
       for (const { id } of failed) {
@@ -357,7 +389,15 @@ export class Household extends Agent<Env> {
       await this.env.MAIL.delete(unique.slice(i, i + 1000));
     }
     this.ctx.storage.transactionSync(() => {
-      for (const table of ["items", "unreadable", "messages", "children", "members", "meta"]) {
+      for (const table of [
+        "items",
+        "notes",
+        "unreadable",
+        "messages",
+        "children",
+        "members",
+        "meta",
+      ]) {
         this.db.exec(`DELETE FROM ${table}`);
       }
     });
@@ -417,6 +457,7 @@ export class Household extends Agent<Env> {
     // Children who've left school can't be the subject of a school letter.
     const children = this.children().filter((c) => currentYearGroup(c, now) !== null);
     let items: ExtractedItem[] = [];
+    let notes: ExtractedNote[] = [];
     if (message.text.trim() !== "" || message.images.length > 0) {
       const result = await runModel(
         this.env.AI,
@@ -437,19 +478,23 @@ export class Household extends Agent<Env> {
       const parsed = parseExtraction(result, sentAt);
       if (parsed === null) throw new Error("UnusableExtraction");
       items = parsed;
+      notes = parseNotes(result);
     }
     this.store(id, {
       sentAt,
       subject: message.subject,
       text: message.text,
       unreadable: message.unreadable,
+      attachments: message.attachments,
       items,
+      notes,
       children,
       childrenVersion,
       processedAt: now.toISOString(),
     });
     console.log("message processed", {
       items: items.length,
+      notes: notes.length,
       unreadable: message.unreadable.length,
       chars: message.text.length,
       pages: message.images.length,
@@ -463,14 +508,27 @@ export class Household extends Agent<Env> {
       subject: string;
       text: string;
       unreadable: Unreadable[];
+      attachments: AttachmentOutcome[];
       items: ExtractedItem[];
+      notes: ExtractedNote[];
       children: Child[];
       childrenVersion: number;
       processedAt: string;
     },
   ): void {
     this.ctx.storage.transactionSync(() => {
+      // A file already mentioned in a digest stays mentioned when the email is read again.
+      const mentioned = new Map(
+        this.db
+          .exec<{ filename: string; mentioned_at: string | null }>(
+            "SELECT filename, mentioned_at FROM unreadable WHERE message_id = ?",
+            id,
+          )
+          .toArray()
+          .map((u) => [u.filename, u.mentioned_at]),
+      );
       this.db.exec("DELETE FROM items WHERE message_id = ?", id);
+      this.db.exec("DELETE FROM notes WHERE message_id = ?", id);
       this.db.exec("DELETE FROM unreadable WHERE message_id = ?", id);
       read.items.forEach((item, index) => {
         const { childIds, maybeChildIds } = relevance(item, read.children);
@@ -494,17 +552,33 @@ export class Household extends Agent<Env> {
           item.dateUnsure ? 1 : 0,
         );
       });
+      read.notes.forEach((note, index) => {
+        const { childIds, maybeChildIds } = relevance(note, read.children);
+        this.db.exec(
+          `INSERT INTO notes (id, message_id, text, school, child, child_ids, maybe_child_ids)
+           VALUES (?, ?, ?, ?, ?, ?, ?)`,
+          `${id}-n${String(index)}`,
+          id,
+          note.text,
+          note.school,
+          note.child,
+          childIds === null ? null : JSON.stringify(childIds),
+          JSON.stringify(maybeChildIds),
+        );
+      });
       for (const file of read.unreadable) {
         this.db.exec(
-          "INSERT INTO unreadable (message_id, filename, reason) VALUES (?, ?, ?)",
+          "INSERT INTO unreadable (message_id, filename, reason, mentioned_at) VALUES (?, ?, ?, ?)",
           id,
           file.filename,
           file.reason,
+          mentioned.get(file.filename) ?? null,
         );
       }
       this.db.exec(
         `UPDATE messages SET status = 'done', subject = ?, sent_at = ?, body_text = ?, processed_at = ?,
-           extraction_version = ?, children_version = ?, attempts = 0, last_error = NULL
+           extraction_version = ?, children_version = ?, attempts = 0, last_error = NULL,
+           attachments = ?
          WHERE id = ?`,
         read.subject,
         read.sentAt,
@@ -512,6 +586,7 @@ export class Household extends Agent<Env> {
         read.processedAt,
         EXTRACTION_VERSION,
         read.childrenVersion,
+        JSON.stringify(read.attachments),
         id,
       );
     });
@@ -696,12 +771,50 @@ export class Household extends Agent<Env> {
       }));
   }
 
+  /** Notes, newest email first. */
+  notes(): StoredNote[] {
+    return this.db
+      .exec<{
+        id: string;
+        message_id: string;
+        text: string;
+        school: string | null;
+        child: string | null;
+        child_ids: string | null;
+        maybe_child_ids: string;
+        subject: string | null;
+        received_at: string;
+      }>(
+        `SELECT n.*, m.subject, m.received_at FROM notes n
+         JOIN messages m ON m.id = n.message_id
+         ORDER BY m.received_at DESC, n.id`,
+      )
+      .toArray()
+      .map((n) => ({
+        id: n.id,
+        messageId: n.message_id,
+        text: n.text,
+        school: n.school,
+        child: n.child,
+        childIds: n.child_ids === null ? null : (JSON.parse(n.child_ids) as string[]),
+        maybeChildIds: JSON.parse(n.maybe_child_ids) as string[],
+        source: { subject: n.subject, receivedAt: n.received_at },
+      }));
+  }
+
+  private notesMentioned(messageId: string): boolean {
+    return (
+      this.db
+        .exec<{ at: string | null }>(
+          "SELECT notes_mentioned_at AS at FROM messages WHERE id = ?",
+          messageId,
+        )
+        .toArray()[0]?.at != null
+    );
+  }
+
   /** Every stored email, newest first, with what happened to it. */
   activity(): Activity[] {
-    const unreadable = new Map<string, string[]>();
-    for (const u of this.unreadable()) {
-      unreadable.set(u.messageId, [...(unreadable.get(u.messageId) ?? []), u.filename]);
-    }
     const childrenVersion = this.childrenVersion();
     return this.db
       .exec<{
@@ -716,10 +829,14 @@ export class Household extends Agent<Env> {
         children_version: number;
         last_error: string | null;
         items: number;
+        notes: number;
+        attachments: string | null;
       }>(
         `SELECT m.id, m.received_at, m.forwarded_by, m.subject, m.status, m.attempts,
                 m.processed_at, m.extraction_version, m.children_version, m.last_error,
-                (SELECT COUNT(*) FROM items i WHERE i.message_id = m.id) AS items
+                m.attachments,
+                (SELECT COUNT(*) FROM items i WHERE i.message_id = m.id) AS items,
+                (SELECT COUNT(*) FROM notes n WHERE n.message_id = m.id) AS notes
          FROM messages m ORDER BY m.received_at DESC, m.id DESC`,
       )
       .toArray()
@@ -736,7 +853,9 @@ export class Household extends Agent<Env> {
           (m.extraction_version < EXTRACTION_VERSION || m.children_version < childrenVersion),
         lastError: m.last_error,
         items: m.items,
-        unreadable: unreadable.get(m.id) ?? [],
+        notes: m.notes,
+        attachments:
+          m.attachments === null ? null : (JSON.parse(m.attachments) as AttachmentOutcome[]),
       }));
   }
 

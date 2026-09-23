@@ -1,4 +1,4 @@
-import { ITEM_KINDS, type ExtractedItem, type ItemKind } from "./prompt";
+import { ITEM_KINDS, type ExtractedItem, type ExtractedNote, type ItemKind } from "./prompt";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 /** Dates up to this long before the email was sent can be about the recent past. */
@@ -51,6 +51,34 @@ export function parseExtraction(result: unknown, sentAt: string): ExtractedItem[
     const item = cleanItem(raw, sentAt);
     return item === null ? [] : [item];
   });
+}
+
+/** At most this many notes are kept from one email. */
+export const MAX_NOTES = 5;
+
+/** The notes in a Workers AI response; [] if there are none or they're unusable. */
+export function parseNotes(result: unknown): ExtractedNote[] {
+  const payload = unwrap(result);
+  if (payload === null || typeof payload !== "object" || !("notes" in payload)) return [];
+  const notes = payload.notes;
+  if (!Array.isArray(notes)) return [];
+  return notes
+    .flatMap((raw): ExtractedNote[] => {
+      if (raw === null || typeof raw !== "object") return [];
+      const r = raw as Record<string, unknown>;
+      const noteText = text(r.text, 240);
+      if (noteText === null) return [];
+      return [
+        {
+          text: noteText,
+          school: text(r.school, 120),
+          child: text(r.child, 80),
+          forChildren: names(r.for),
+          maybeChildren: names(r.maybe),
+        },
+      ];
+    })
+    .slice(0, MAX_NOTES);
 }
 
 function unwrap(result: unknown): unknown {

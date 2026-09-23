@@ -12,6 +12,7 @@ The owner first (two children at two schools), then other UK school parents.
 4. **Every Sunday evening (UK time)** the household gets one short email, readable in about 30 seconds:
    - the week ahead, grouped by day, with the child's name on each line (dates, costs, locations, early starts and kit)
    - a short "Coming up" section for deadlines and payments in the next ~3 weeks
+   - a short "Worth knowing" list of points without a firm date from that week's emails: clubs and activities on offer, things to buy, rules and reminders, who to contact
    - a single line, "Nothing on this week.", if there's nothing
    - a single note for any attachment or email we couldn't read (e.g. an old `.ppt`), so nothing is missed without you knowing
    - a one-click stop link

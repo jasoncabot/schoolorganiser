@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Child } from "../../src/children";
 import { digestEmail, MAX_LINES, nextDigestTime, type DigestInput } from "../../src/email/digest";
-import type { StoredItem } from "../../src/household";
+import type { StoredItem, StoredNote } from "../../src/household";
 import { londonTime, ukTime } from "../../src/uk-time";
 
 describe("nextDigestTime", () => {
@@ -101,6 +101,7 @@ function digest(overrides: Partial<DigestInput>) {
     children: [ada, bo],
     unreadable: [],
     failed: [],
+    notes: [],
     appOrigin: "https://school.example.com",
     stopLink: "https://school.example.com/stop?token=t",
     ...overrides,
@@ -180,6 +181,45 @@ describe("digestEmail", () => {
     expect(
       digest({ items: [item({ title: "Parents' evening", dateUnsure: true })] }).text,
     ).toContain("- Ada: Parents' evening (check the date)\n");
+  });
+
+  it("lists notes worth knowing, with who they're for, at most five", () => {
+    const note = (text: string, overrides: Partial<StoredNote> = {}): StoredNote => ({
+      id: text,
+      messageId: "m-1",
+      text,
+      school: null,
+      child: null,
+      childIds: ["c-ada"],
+      maybeChildIds: [],
+      source: { subject: "Fwd: Club", receivedAt: "2025-10-08T08:00:00.000Z" },
+      ...overrides,
+    });
+    const email = digest({
+      notes: [
+        note("Judo club on Wednesdays, £72 for 9 lessons; book with coach@example.com."),
+        note("judo club on wednesdays, £72 for 9 lessons; book with coach@example.com."),
+        note("Not for us.", { childIds: [] }),
+        note("Oak class swimming kit needed.", {
+          child: "Oak class",
+          childIds: [],
+          maybeChildIds: ["c-ada"],
+        }),
+        ...["One", "Two", "Three", "Four"].map((t) => note(`${t}.`, { childIds: ["c-bo"] })),
+      ],
+    });
+    const lines = email.text.split("\n");
+    const start = lines.indexOf("Worth knowing");
+    expect(lines.slice(start, start + 7)).toEqual([
+      "Worth knowing",
+      "- Ada: Judo club on Wednesdays, £72 for 9 lessons; book with coach@example.com.",
+      "- Oak class (may be Ada's): Oak class swimming kit needed.",
+      "- Bo: One.",
+      "- Bo: Two.",
+      "- Bo: Three.",
+      "Plus 1 more: https://school.example.com/household/upcoming",
+    ]);
+    expect(email.html).toContain(">Worth knowing</h2>");
   });
 
   it("says so in a quiet week", () => {

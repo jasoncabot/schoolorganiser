@@ -1,0 +1,12 @@
+{
+  "sentAt": "2026-09-23T15:00:00.000Z",
+  "subject": "Fwd: Judo club",
+  "text": "Attachment: judo-club.pdf\n\nOakfield Primary Judo Club\nCome and join us…\n\nWe would like to invite pupils to join our new after-school judo club, starting from Wednesday 7th October 2026.\nClasses teach throws, holds and safe falling, plus fitness and confidence.\n\nDates are from Wednesday 7th October to Wednesday 9th December, with a half-term break on Oct 28th (no lesson).\nCost: £72 for the 9 lessons.\nA judo suit isn't needed at first, but each pupil will need one eventually. Suits cost £20.\n\nTo book a place or ask a question, contact Coach Sam at coach@example.com.",
+  "expected": [
+    {
+      "date": "2026-10-07",
+      "kind": "event"
+    }
+  ],
+  "noteIncludes": ["£72", "coach@example.com"]
+}

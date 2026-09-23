@@ -1,5 +1,5 @@
 import type { Child } from "../children";
-import type { StoredItem } from "../household";
+import type { StoredItem, StoredNote } from "../household";
 import {
   addDaysToDate,
   dayLabel,
@@ -16,6 +16,8 @@ import { COLOURS, layout, type OutboundEmail } from "./outbound";
 export const DIGEST_HOUR = 18;
 /** Most item lines in one digest, across both sections (docs/decisions.md). */
 export const MAX_LINES = 15;
+/** Most "Worth knowing" lines in one digest. */
+export const MAX_DIGEST_NOTES = 5;
 /** "Coming up" covers deadlines and payments up to this many days ahead. */
 const COMING_UP_DAYS = 21;
 
@@ -35,6 +37,8 @@ export interface DigestInput {
   unreadable: { filename: string; subject: string | null }[];
   /** Forwarded emails we gave up on and haven't mentioned yet. */
   failed: { receivedAt: string }[];
+  /** Notes from recent emails not yet in a digest. */
+  notes: StoredNote[];
   appOrigin: string;
   stopLink: string;
 }
@@ -107,6 +111,21 @@ export function digestEmail(input: DigestInput): OutboundEmail {
     }
     text.push("");
   }
+  const notes = relevantNotes(input.notes).map((n) => ({
+    date: "",
+    text: describeNote(n, names),
+  }));
+  if (notes.length > 0) {
+    const shown = notes.slice(0, MAX_DIGEST_NOTES);
+    text.push("Worth knowing", ...shown.map((l) => `- ${l.text}`));
+    html.push(subheading("Worth knowing"), list(shown));
+    const notesMore = more(shown, notes);
+    if (notesMore !== null) {
+      text.push(`${notesMore}: ${upcoming}`);
+      html.push(moreLink(notesMore, upcoming));
+    }
+    text.push("");
+  }
   if (failed !== null) {
     text.push(failed, "");
     html.push(paragraph(failed, COLOURS.muted));
@@ -137,7 +156,30 @@ export function childNames(children: Child[]): Map<string, string> {
   return new Map(children.map((c) => [c.id, c.name]));
 }
 
-function isRelevant(item: StoredItem): boolean {
+/** Notes for the household's children (or "maybe"), without repeats, in the order given. */
+export function relevantNotes(notes: StoredNote[]): StoredNote[] {
+  const seen = new Set<string>();
+  return notes.filter((n) => {
+    const key = n.text.toLowerCase();
+    if (!isRelevant(n) || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+/** "Ada: Judo club on Wednesdays, £72 for 9 lessons; book with coach@example.com." */
+export function describeNote(note: StoredNote, names: Map<string, string>): string {
+  const who = audience(note, names);
+  return who === null ? note.text : `${who}: ${note.text}`;
+}
+
+interface Audience {
+  child: string | null;
+  childIds: string[] | null;
+  maybeChildIds: string[];
+}
+
+function isRelevant(item: Audience): boolean {
   return item.childIds === null || item.childIds.length > 0 || item.maybeChildIds.length > 0;
 }
 
@@ -178,7 +220,7 @@ export function describeItem(item: StoredItem, names: Map<string, string>): stri
   return item.dateUnsure ? `${line} (check the date)` : line;
 }
 
-function audience(item: StoredItem, names: Map<string, string>): string | null {
+function audience(item: Audience, names: Map<string, string>): string | null {
   const nameOf = (ids: string[]): string[] => ids.flatMap((id) => names.get(id) ?? []);
   if (item.childIds === null) return item.child;
   const sure = nameOf(item.childIds);

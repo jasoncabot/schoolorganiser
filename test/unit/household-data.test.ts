@@ -44,6 +44,15 @@ async function household(name: string, members: string[]) {
     item("m1-0", "2025-10-10", "Already happened");
     item("m1-1", "2025-10-12", "Harvest festival");
     item("m1-2", "2025-12-05", "Christmas fair");
+    sql.exec(
+      `INSERT INTO messages (id, r2_key, received_at, expires_at, status)
+       VALUES ('old', 'k-old', '2025-08-01T08:00:00.000Z', '2025-10-30T08:00:00.000Z', 'done')`,
+    );
+    sql.exec(
+      `INSERT INTO notes (id, message_id, text, child_ids, maybe_child_ids) VALUES
+       ('m1-n0', 'm1', 'Judo club on Wednesdays.', NULL, '[]'),
+       ('old-n0', 'old', 'A note from long ago.', NULL, '[]')`,
+    );
   });
   const cookie = (await sessionCookie(env, deps, members[0] ?? "")).split(";")[0] ?? "";
   return { deps, stub, cookie, householdId, key };
@@ -70,6 +79,9 @@ describe("coming up", () => {
     );
     expect(page).toContain("<h2>Fri 5 Dec</h2>");
     expect(page).not.toContain("Already happened");
+    expect(page).toContain("<h2>Worth knowing</h2>");
+    expect(page).toContain("Judo club on Wednesdays.");
+    expect(page).not.toContain("A note from long ago.");
   });
 
   it("is linked from the household page", async () => {
@@ -104,7 +116,9 @@ describe("activity", () => {
     await runInDurableObject(stub, (_instance: Household, state) => {
       const sql = state.storage.sql;
       sql.exec(
-        `UPDATE messages SET forwarded_by = 'activity@example.com', processed_at = '2025-10-08T08:01:00.000Z' WHERE id = 'm1'`,
+        `UPDATE messages SET forwarded_by = 'activity@example.com', processed_at = '2025-10-08T08:01:00.000Z',
+           attachments = '[{"filename":"judo.docx","outcome":"read"},{"filename":"logo.png","outcome":"skipped"},{"filename":"menu.ppt","outcome":"unreadable"}]'
+         WHERE id = 'm1'`,
       );
       sql.exec(
         "INSERT INTO unreadable (message_id, filename, reason) VALUES ('m1', 'menu.ppt', 'unsupported format')",
@@ -131,7 +145,7 @@ describe("activity", () => {
       "Received Wed 8 Oct, 9am, from activity@example.com, read Wed 8 Oct, 9:01am",
     );
     expect(section).toContain(
-      '<span class="tag tag-done">Done</span> 3 items found. Couldn&#39;t read menu.ppt.',
+      '<span class="tag tag-done">Done</span> 3 items and 1 note found. Attachments: judo.docx (read), logo.png (skipped as a logo), menu.ppt (couldn&#39;t read).',
     );
     expect(section).toContain("Received Thu 9 Oct, 2:05pm");
     expect(section).toContain(

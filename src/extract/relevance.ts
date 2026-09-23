@@ -2,6 +2,9 @@ import type { Child } from "../children";
 import { namesAClass } from "./parse";
 import type { ExtractedItem } from "./prompt";
 
+/** The parts of an item or note that say who it's for. */
+export type Audience = Pick<ExtractedItem, "child" | "forChildren" | "maybeChildren">;
+
 export interface Relevance {
   /** Children the item is for, or null when the household had none set up (relevant to all). */
   childIds: string[] | null;
@@ -13,7 +16,7 @@ export interface Relevance {
  * Maps the model's children's names to ids. An item that names a class can only be a "maybe"
  * for a child whose class we don't know, whatever the model said: the model guesses otherwise.
  */
-export function relevance(item: ExtractedItem, children: Child[]): Relevance {
+export function relevance(item: Audience, children: Child[]): Relevance {
   if (children.length === 0) return { childIds: null, maybeChildIds: [] };
   const ids = (names: string[]): string[] => {
     const wanted = new Set(names.map((n) => n.toLowerCase()));

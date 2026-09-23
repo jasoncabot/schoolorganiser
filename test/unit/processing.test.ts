@@ -96,6 +96,44 @@ const process = (household: DurableObjectStub<Household>, name: string) =>
   );
 
 describe("processing", () => {
+  it("stores notes worth knowing, and keeps an unreadable file mentioned when re-read", async () => {
+    const household = await received("household-notes", trip("household-notes"), {
+      response: {
+        items: TRIP_ITEMS,
+        notes: [
+          {
+            text: "Bring a packed lunch in a named bag.",
+            school: null,
+            child: "Year 3",
+            for: [],
+            maybe: [],
+          },
+          { text: "   ", school: null, child: null, for: [], maybe: [] },
+        ],
+      },
+    });
+    await process(household, "notes");
+    expect((await household.notes()).map((n) => [n.text, n.child, n.childIds])).toEqual([
+      ["Bring a packed lunch in a named bag.", "Year 3", null],
+    ]);
+    const activity = (await household.activity())[0];
+    expect(activity?.notes).toBe(1);
+    expect(activity?.attachments).toEqual([{ filename: "old-form.doc", outcome: "unreadable" }]);
+
+    await runInDurableObject(household, (_instance: Household, state) => {
+      state.storage.sql.exec("UPDATE unreadable SET mentioned_at = '2025-10-05T17:00:00.000Z'");
+      state.storage.sql.exec("UPDATE messages SET extraction_version = 1");
+    });
+    expect(await process(household, "notes again")).toEqual({ processed: 1, retry: false });
+    const mentioned = await runInDurableObject(household, (_instance: Household, state) =>
+      state.storage.sql
+        .exec<{ at: string | null }>("SELECT mentioned_at AS at FROM unreadable")
+        .toArray(),
+    );
+    expect(mentioned).toEqual([{ at: "2025-10-05T17:00:00.000Z" }]);
+    expect(await household.notes()).toHaveLength(1);
+  });
+
   it("extracts items, records unreadable files and marks the message done", async () => {
     const household = await received("household-process", trip("household-process"), {
       response: { items: TRIP_ITEMS },

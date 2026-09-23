@@ -8,6 +8,12 @@ export interface Unreadable {
   reason: "unsupported format" | "conversion failed";
 }
 
+/** What happened to one attachment, for the household's activity log. */
+export interface AttachmentOutcome {
+  filename: string;
+  outcome: "read" | "skipped" | "unreadable";
+}
+
 export interface ReadMessage {
   subject: string;
   /** When the email was sent (Date header), as an ISO string, or null if missing. */
@@ -17,6 +23,7 @@ export interface ReadMessage {
   /** PDF pages drawn as JPEG data URLs, in attachment and page order (at most MAX_RENDERED_PAGES). */
   images: string[];
   unreadable: Unreadable[];
+  attachments: AttachmentOutcome[];
 }
 
 /** Formats Workers AI toMarkdown converts (docs: workers-ai/features/markdown-conversion). */
@@ -25,6 +32,12 @@ const TO_MARKDOWN =
 const PLAIN_TEXT = /\.(txt|ics)$/i;
 const PPTX = /\.pptx$/i;
 const PDF = /\.pdf$/i;
+/**
+ * Inline images smaller than this are skipped as logos and signatures. Larger ones may be a
+ * photo of a letter. Other inline attachments are always read: iPhone Mail forwards documents
+ * as inline parts with a Content-ID.
+ */
+export const INLINE_IMAGE_SKIP_BYTES = 50_000;
 /** At most this many images from one PowerPoint go to toMarkdown (each costs an AI call). */
 export const MAX_PPTX_IMAGES = 5;
 
@@ -38,6 +51,7 @@ export async function readMessage(
   const parts: string[] = [];
   const images: string[] = [];
   const unreadable: Unreadable[] = [];
+  const attachments: AttachmentOutcome[] = [];
 
   const body = email.text?.trim() ?? "";
   if (body !== "") {
@@ -53,10 +67,16 @@ export async function readMessage(
   }
 
   for (const attachment of email.attachments) {
-    // Inline images in the body are logos and signatures, not letters.
-    if (attachment.disposition === "inline" && attachment.contentId !== undefined) continue;
     const filename = attachment.filename ?? fallbackName(attachment);
     const bytes = asBytes(attachment.content);
+    if (
+      attachment.disposition === "inline" &&
+      attachment.mimeType.startsWith("image/") &&
+      bytes.length < INLINE_IMAGE_SKIP_BYTES
+    ) {
+      attachments.push({ filename, outcome: "skipped" });
+      continue;
+    }
     if (PDF.test(filename) || attachment.mimeType === "application/pdf") {
       // Pages as images (Browser Run) read tables and layouts best; the text layer helps with
       // small print. Either is enough on its own.
@@ -67,16 +87,20 @@ export async function readMessage(
       const text =
         (await readPdfText(bytes)) ?? (await toMarkdown(ai, filename, bytes, "application/pdf"));
       if (pages !== null) images.push(...pages);
-      if (text !== null && text.trim() !== "")
-        parts.push(`Attachment: ${filename}\n${text.trim()}`);
+      const hasText = text !== null && text.trim() !== "";
+      if (hasText) parts.push(`Attachment: ${filename}\n${text.trim()}`);
       else if (pages === null) unreadable.push({ filename, reason: "conversion failed" });
+      attachments.push({ filename, outcome: hasText || pages !== null ? "read" : "unreadable" });
       continue;
     }
     const text = await readAttachment(ai, filename, bytes, attachment.mimeType);
-    if (typeof text === "string") {
-      if (text.trim() !== "") parts.push(`Attachment: ${filename}\n${text.trim()}`);
+    if (typeof text === "string" && text.trim() !== "") {
+      parts.push(`Attachment: ${filename}\n${text.trim()}`);
+      attachments.push({ filename, outcome: "read" });
     } else {
-      unreadable.push({ filename, reason: text.reason });
+      const reason = typeof text === "string" ? "conversion failed" : text.reason;
+      unreadable.push({ filename, reason });
+      attachments.push({ filename, outcome: "unreadable" });
     }
   }
 
@@ -87,6 +111,7 @@ export async function readMessage(
     text: parts.join("\n\n"),
     images,
     unreadable,
+    attachments,
   };
 }
 

@@ -41,6 +41,15 @@ export function migrate(sql: SqlStorage): void {
       key TEXT PRIMARY KEY,
       value INTEGER NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS notes (
+      id TEXT PRIMARY KEY,
+      message_id TEXT NOT NULL,
+      text TEXT NOT NULL,
+      school TEXT,
+      child TEXT,
+      child_ids TEXT,
+      maybe_child_ids TEXT NOT NULL
+    );
     CREATE TABLE IF NOT EXISTS unreadable (
       message_id TEXT NOT NULL,
       filename TEXT NOT NULL,
@@ -60,6 +69,8 @@ export function migrate(sql: SqlStorage): void {
     children_version: "INTEGER NOT NULL DEFAULT 0",
     failure_mentioned_at: "TEXT",
     forwarded_by: "TEXT",
+    attachments: "TEXT",
+    notes_mentioned_at: "TEXT",
     last_error: "TEXT",
   });
   addMissingColumns(sql, "items", {

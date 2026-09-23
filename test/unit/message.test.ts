@@ -27,6 +27,7 @@ describe("readMessage", () => {
       text: "Harvest festival on Friday.",
       images: [],
       unreadable: [],
+      attachments: [],
     });
   });
 
@@ -171,6 +172,38 @@ describe("readMessage", () => {
       "Body\n\nAttachment: concert.ics\nBEGIN:VEVENT\nSUMMARY:Carol concert\nEND:VEVENT",
     );
     expect(message.unreadable).toEqual([]);
+    expect(message.attachments).toEqual([
+      { filename: "logo.png", outcome: "skipped" },
+      { filename: "concert.ics", outcome: "read" },
+    ]);
+  });
+
+  it("reads documents that iPhone Mail forwards as inline parts", async () => {
+    await registerMarkdown("PK inline docx judo club", "Judo club starts Wednesday 7 October");
+    const message = await readMessage(
+      encode(
+        mimeEmail({
+          from: "p@example.com",
+          subject: "Fwd: Judo club",
+          text: "See attached",
+          attachments: [
+            {
+              filename: "judo.docx",
+              contentType:
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+              bytes: "PK inline docx judo club",
+              inlineId: "judo@iphone",
+            },
+          ],
+        }),
+      ),
+      env.AI,
+      pdfRenderer(env, testDeps("renderer")),
+    );
+    expect(message.text).toBe(
+      "See attached\n\nAttachment: judo.docx\nJudo club starts Wednesday 7 October",
+    );
+    expect(message.attachments).toEqual([{ filename: "judo.docx", outcome: "read" }]);
   });
 
   it("converts an HTML-only body with toMarkdown", async () => {

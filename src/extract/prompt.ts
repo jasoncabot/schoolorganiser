@@ -12,7 +12,7 @@ export const EXTRACTION_MODEL = "@cf/mistralai/mistral-small-3.1-24b-instruct";
  * Bump when reading or extraction changes in a way worth re-running on stored mail (prompt,
  * model, PDF layout). Messages read by an older version are re-read on the next processing run.
  */
-export const EXTRACTION_VERSION = 5;
+export const EXTRACTION_VERSION = 6;
 
 export const ITEM_KINDS = [
   "event",
@@ -48,6 +48,15 @@ export interface ExtractedItem {
    * Children it may apply to but the model couldn't tell, e.g. an item for "Oak class" when a
    * child at that school has no class set.
    */
+  maybeChildren: string[];
+}
+
+/** A point worth knowing that has no firm date, e.g. a club on offer or a rule. */
+export interface ExtractedNote {
+  text: string;
+  school: string | null;
+  child: string | null;
+  forChildren: string[] | null;
   maybeChildren: string[];
 }
 
@@ -108,13 +117,29 @@ export const EXTRACTION_SCHEMA = {
         ],
       },
     },
+    notes: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          text: { type: "string", description: "One short point, at most 25 words" },
+          school: { type: ["string", "null"] },
+          child: { type: ["string", "null"] },
+          for: { type: "array", items: { type: "string" } },
+          maybe: { type: "array", items: { type: "string" } },
+        },
+        required: ["text", "school", "child", "for", "maybe"],
+      },
+    },
   },
-  required: ["items"],
+  required: ["items", "notes"],
 } as const;
 
 const SYSTEM = `You read letters and emails that UK schools send to parents and list the things a busy parent must know about.
 
-Return JSON: {"items": [...]}. One item per thing that happens or is due on a specific date:
+Return JSON: {"items": [...], "notes": [...]}.
+
+"items": one per thing that happens or is due on a specific date:
 - event: trips, performances, sports days, parents' evenings, discos, assemblies parents can attend
 - deadline: forms, consent slips, replies or bookings due by a date
 - payment: money due by a date (put the amount in "cost")
@@ -137,7 +162,16 @@ Rules:
 - "child" is the class, year group or child the item is for if the letter says (e.g. "Year 3", "Oak class"), else null.
 - A trip that needs payment and consent by a deadline gives three items: the trip, the payment and the deadline.
 - "confidence" is "low" if you had to guess the date or what is needed, else "high".
-- Never invent details that aren't in the letter.`;
+- Never invent details that aren't in the letter.
+
+"notes": up to 5 short points a parent should know that aren't already an item. For example: a club or activity on offer (what, which days, cost, how to book), something to buy, a rule or reminder (no nuts, new pick-up arrangements, uniform changes), or who to contact about something.
+- Anything with a specific date is an item, not a note.
+- One note per topic: put a club's days, cost, kit and how to book in the same note.
+- Each "text" is one plain British-English sentence of at most 25 words, e.g. "Chess club runs on Thursdays at lunchtime, £2 a week; sign up at the school office."
+- Keep contact details exactly as written. Never include bank account numbers, sort codes or payment references.
+- Skip greetings, sign-offs, history, praise and anything a parent needn't act on or know.
+- "school", "child", "for" and "maybe" mean the same as for items.
+- If there's nothing worth knowing, "notes" is [].`;
 
 /** A child as the model sees them. */
 export interface PromptChild {
@@ -162,7 +196,7 @@ export interface ExtractionInput {
 
 function householdSection(children: PromptChild[]): string {
   if (children.length === 0) {
-    return `\n\nThis household hasn't told us about its children yet, so give "for" and "maybe" as [] for every item.`;
+    return `\n\nThis household hasn't told us about its children yet, so give "for" and "maybe" as [] for every item and note.`;
   }
   const lines = children.map(
     (c) =>
@@ -170,7 +204,7 @@ function householdSection(children: PromptChild[]): string {
   );
   return `\n\nThis household's children:\n${lines.join("\n")}
 
-"for" lists the names of the children above that the item applies to:
+"for" lists the names of the children above that the item or note applies to:
 - A letter only ever applies to children at the school that sent it. Work out the school from the letter (its name, letterhead or sender). If none of these children go to that school, "for" is [] for every item.
 - Whole-school items (INSET days, closures, term dates, events for all pupils) apply to every child above at that school.
 - Items for particular year groups, key stages or classes apply only to the children above in them. Nursery and Reception are the early years ("EYFS"); Years 1 and 2 are key stage 1 ("KS1"); Years 3 to 6 are key stage 2 ("KS2"); Years 7 to 9 are key stage 3 ("KS3"); Years 10 and 11 are key stage 4 ("KS4"); "Y3" means Year 3.
