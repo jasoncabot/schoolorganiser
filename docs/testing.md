@@ -49,7 +49,9 @@ Playwright drives the real Worker under `wrangler dev --env e2e`, with the same 
 5. Move the fixed clock to Sunday evening and trigger the digest.
 6. Check the digest text with a snapshot, and check the upcoming items on the web page.
 
-The test-only routes (outbox reader, clock control) exist only when the `e2e` environment's stub bindings are present. The production config doesn't include those bindings.
+- Local mail has no Cloudflare authentication results, so e2e emails carry an `ARC-Authentication-Results` header from `mx.cloudflare.net`, as Email Routing would add.
+- `GET /__test/outbox?to=` returns what the email stub has sent. It exists only when `E2E_TEST_ROUTES` is `"1"`, which only `test/wrangler.test.jsonc` sets.
+- Every Playwright run starts a fresh `wrangler dev` with empty state (`.wrangler/e2e-state`), so tests can use fixed addresses and never depend on earlier runs.
 
 ## How it's wired
 

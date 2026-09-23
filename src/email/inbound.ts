@@ -1,6 +1,7 @@
 import { addressStub, householdStub } from "../bindings";
 import type { Deps } from "../deps";
 import { addDays, MAIL_DAYS, PENDING_DAYS } from "../retention";
+import { sendVerification } from "../verification";
 import { cloudflareAuthResults, senderIsAuthenticated } from "./auth";
 import { senderAddress, sha256Hex } from "./sender";
 
@@ -83,6 +84,15 @@ async function storeForwardedMail(
     receivedAt: now.toISOString(),
     expiresAt: addDays(now, PENDING_DAYS).toISOString(),
   });
-  // Plan step 4 sends the verification link from here.
-  return "held: sender not verified";
+  try {
+    const verification = await sendVerification(env, deps, sender);
+    return `held: sender not verified; verification ${verification}`;
+  } catch (error) {
+    // The mail is safely held; the next forward will retry. Log the error code only.
+    const code = (error as { code?: unknown }).code;
+    console.error("verification email failed", {
+      code: typeof code === "string" ? code : "unknown",
+    });
+    return "held: sender not verified; verification failed";
+  }
 }

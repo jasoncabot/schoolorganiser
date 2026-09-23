@@ -5,7 +5,7 @@ Each step ships with tests (see `testing.md`) and deploys via Workers Builds onc
 1. **Scaffold (done):** Worker and Agents SDK, `wrangler.jsonc` (with an `e2e` environment), `@cloudflare/vitest-plugin` with the AI and email stub Workers, the `Deps` object, ESLint, Prettier, strict `tsc`, Playwright, the Tailwind v4 build, `.dev.vars.example` and `.gitignore`.
 2. **Provision:** set up Email Routing on `school.jasoncabot.com` (`hello@` and `privacy@`) pointing to the Worker, add the owner as a verified destination, onboard Email Service sending, create the R2 bucket and its lifecycle rules, connect Workers Builds (build command `npm run check:ci && npm run build`, deploy command `npx wrangler deploy`) and add the secrets.
 3. **Inbound (done):** `email()` handler with the auth check, raw mail to R2 and the address lookup.
-4. **Verification:** signed link, holding pending mail, promoting it on verify.
+4. **Verification (done):** signed link, holding pending mail, promoting it on verify.
 5. **Processing:** MIME parsing, `toMarkdown` for PDF, DOCX and images, PPTX via `fflate`, recording unreadable files, AI extraction into `items`.
 6. **Retention:** `expires_at` on every row, and a single purge alarm re-armed to the next expiry. Test with the injected clock and `runDurableObjectAlarm`, and check that the R2 lifecycle rules are in place.
 7. **Digest:** Sunday schedule, a short email built from next week's items, sent to all members.

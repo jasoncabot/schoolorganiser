@@ -25,10 +25,11 @@ export default defineConfig({
     },
   ],
   webServer: {
-    // The Worker plus the AI and email stubs, all local (see docs/testing.md).
-    command: `npx wrangler dev -c test/wrangler.test.jsonc -c test/stubs/wrangler.jsonc --ip 127.0.0.1 --port ${String(port)}`,
+    // The Worker plus the AI and email stubs, all local (see docs/testing.md). Every run starts
+    // from empty storage and a fresh server, so results don't depend on earlier runs.
+    command: `rm -rf .wrangler/e2e-state && npx wrangler dev -c test/wrangler.test.jsonc -c test/stubs/wrangler.jsonc --persist-to .wrangler/e2e-state --ip 127.0.0.1 --port ${String(port)}`,
     url: `http://127.0.0.1:${String(port)}/`,
-    reuseExistingServer: !process.env.CI,
+    reuseExistingServer: false,
     timeout: 120_000,
   },
 });

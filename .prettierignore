@@ -7,3 +7,4 @@ public/assets/
 worker-configuration.d.ts
 package-lock.json
 test/stubs/dist/
+public/privacy.html

@@ -68,6 +68,34 @@
     @apply inline-block cursor-pointer bg-success px-4 py-2 font-semibold text-white no-underline;
     box-shadow: 0 2px #002d18;
   }
+  /* Long-form pages rendered from Markdown, e.g. the privacy notice. */
+  .prose-plain {
+    & ul {
+      @apply mb-5 list-disc pl-6;
+    }
+    & ol {
+      @apply mb-5 list-decimal pl-6;
+    }
+    & li {
+      @apply mb-1;
+    }
+    & h2 {
+      @apply mt-10;
+    }
+    & table {
+      @apply mb-6 w-full border-collapse text-left;
+    }
+    & th,
+    & td {
+      @apply border-b border-rule py-2 pr-4 align-top;
+    }
+    & th {
+      @apply font-bold;
+    }
+    & code {
+      @apply font-mono text-[0.9em];
+    }
+  }
   .inset {
     @apply my-6 border-l-8 border-rule py-2 pl-4;
   }

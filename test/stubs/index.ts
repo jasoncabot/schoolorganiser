@@ -48,9 +48,11 @@ export class AiStub extends WorkerEntrypoint<StubEnv> {
   }
 }
 
+type Recipient = string | { email: string; name?: string };
+
 export interface SentEmail {
   to: string[];
-  from: string;
+  from: Recipient;
   subject: string;
   text?: string;
   html?: string;
@@ -58,8 +60,12 @@ export interface SentEmail {
 }
 
 export class EmailStub extends WorkerEntrypoint<StubEnv> {
-  async send(message: SentEmail & { to: string | string[] }): Promise<{ messageId: string }> {
-    const to = Array.isArray(message.to) ? message.to : [message.to];
+  async send(
+    message: Omit<SentEmail, "to"> & { to: Recipient | Recipient[] },
+  ): Promise<{ messageId: string }> {
+    const to = (Array.isArray(message.to) ? message.to : [message.to]).map((r) =>
+      typeof r === "string" ? r : r.email,
+    );
     const sent: SentEmail = { ...message, to };
     for (const recipient of to) {
       await this.env.OUTBOX.getByName(recipient.toLowerCase()).record(sent);

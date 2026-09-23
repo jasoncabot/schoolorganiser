@@ -9,3 +9,4 @@ test-results/
 public/assets/app.css
 public/assets/fonts/
 test/stubs/dist/
+public/privacy.html

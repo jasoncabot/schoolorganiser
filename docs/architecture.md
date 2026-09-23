@@ -26,7 +26,7 @@ parent ──forward──▶ Email Routing (hello@school.jasoncabot.com)
 
 ## Components
 
-- **Worker (single script):** includes the `email()` handler, the `fetch()` handler (web page and API, verification links) and the Agent classes.
+- **Worker (single script):** includes the `email()` handler, the `fetch()` handler (web page and API, verification links) and the Agent classes. Static pages (`/`, `/privacy`) come from Workers static assets; `/verify` is rendered by the Worker (`src/web/`).
 - **Household Agent:** one per household, keyed by household ID. It holds members, children, schools, messages, extracted items and digest history.
 - **Address lookup:** a small Durable Object per email address (`getByName(normalisedEmail)`) that stores its household ID and verification state, plus the R2 keys of mail held while unverified. The address comes from the DMARC-authenticated `From` header, not the envelope sender. v1 identifies the parent from the manual forwarder's address. Keep the sender-identification step separate so automatic forwarding can plug in later.
 - **R2 bucket:** holds raw mail and attachments. Keys are `pending/<sha256(address)>/<id>.eml` for unverified senders and `mail/<householdId>/<id>.eml` for verified ones. Lifecycle rules: `pending/` expires after 7 days and `mail/` after 90 days. Keys never contain an email address.

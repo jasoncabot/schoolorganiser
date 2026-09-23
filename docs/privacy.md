@@ -11,7 +11,7 @@ We only process your data because you asked us to. You opt in in two steps:
 1. You forward a school email to `hello@school.jasoncabot.com`.
 2. You click the verification link we send back.
 
-Until you've verified, nothing you forward is read or summarised. It is held for 7 days and then deleted. If you don't verify, we never email you again.
+Until you've verified, nothing you forward is read or summarised. It is held for 7 days and then deleted. If you don't verify, we don't email you again unless you forward another email, and even then at most once a day.
 
 ## What we use your data for
 

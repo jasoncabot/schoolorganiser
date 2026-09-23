@@ -22,6 +22,10 @@ export class Household extends Agent<Env> {
         received_at TEXT NOT NULL,
         expires_at TEXT NOT NULL
       )`);
+      this.ctx.storage.sql.exec(`CREATE TABLE IF NOT EXISTS members (
+        address TEXT PRIMARY KEY,
+        joined_at TEXT NOT NULL
+      )`);
       this.schemaReady = true;
     }
     return this.ctx.storage.sql;
@@ -36,6 +40,24 @@ export class Household extends Agent<Env> {
       mail.receivedAt,
       mail.expiresAt,
     );
+  }
+
+  /** Adds a verified address to the household. Digests go to every member. */
+  addMember(address: string, joinedAt: string): void {
+    this.db.exec(
+      "INSERT OR IGNORE INTO members (address, joined_at) VALUES (?, ?)",
+      address,
+      joinedAt,
+    );
+  }
+
+  members(): { address: string; joinedAt: string }[] {
+    return this.db
+      .exec<{ address: string; joined_at: string }>(
+        "SELECT address, joined_at FROM members ORDER BY joined_at, address",
+      )
+      .toArray()
+      .map((m) => ({ address: m.address, joinedAt: m.joined_at }));
   }
 
   messages(): ReceivedMail[] {

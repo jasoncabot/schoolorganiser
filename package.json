@@ -8,7 +8,7 @@
     "node": ">=22"
   },
   "scripts": {
-    "build": "node scripts/copy-fonts.mjs && npm run build:css",
+    "build": "node scripts/copy-fonts.mjs && node scripts/build-privacy.mjs && npm run build:css",
     "build:css": "tailwindcss -i src/styles/app.css -o public/assets/app.css --minify",
     "types": "wrangler types --strict-vars=false",
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.node.json",
@@ -38,6 +38,7 @@
     "@vitest/coverage-istanbul": "~4.1.11",
     "eslint": "^10.11.0",
     "eslint-config-prettier": "^10.1.8",
+    "marked": "^18.0.14",
     "prettier": "^3.9.9",
     "tailwindcss": "^4.3.3",
     "typescript": "~6.0.0",
