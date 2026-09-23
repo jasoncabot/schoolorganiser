@@ -285,12 +285,21 @@ function activityRow(a: Activity): Html {
       read: "read",
       skipped: "skipped as a logo",
       unreadable: "couldn't read",
-      missing: "not attached",
     };
-    const files = (a.attachments ?? []).map((f) => `${f.filename} (${outcome[f.outcome]})`);
+    const attached = (a.attachments ?? []).filter((f) => f.outcome !== "missing");
+    const missing = (a.attachments ?? []).filter((f) => f.outcome === "missing");
+    const attachments =
+      a.attachments === null
+        ? "Attachments weren't recorded when this was read."
+        : attached.length === 0
+          ? "No attachments."
+          : `${plural(attached.length, "attachment")}: ${attached.map((f) => `${f.filename} (${outcome[f.outcome as keyof typeof outcome]})`).join(", ")}.`;
     detail = [
       `${plural(a.items, "item")} and ${plural(a.notes, "note")} found.`,
-      files.length > 0 ? `Attachments: ${files.join(", ")}.` : "",
+      attachments,
+      missing.length > 0
+        ? `Mentions ${missing.map((f) => f.filename).join(", ")}, but ${missing.length === 1 ? "it wasn't" : "they weren't"} attached.`
+        : "",
       a.rereading ? "Reading again after a change." : "",
     ]
       .filter((p) => p !== "")

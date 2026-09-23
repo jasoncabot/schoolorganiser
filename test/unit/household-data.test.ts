@@ -117,7 +117,7 @@ describe("activity", () => {
       const sql = state.storage.sql;
       sql.exec(
         `UPDATE messages SET forwarded_by = 'activity@example.com', processed_at = '2025-10-08T08:01:00.000Z',
-           attachments = '[{"filename":"judo.docx","outcome":"read"},{"filename":"logo.png","outcome":"skipped"},{"filename":"menu.ppt","outcome":"unreadable"}]'
+           attachments = '[{"filename":"judo.docx","outcome":"read"},{"filename":"logo.png","outcome":"skipped"},{"filename":"menu.ppt","outcome":"unreadable"},{"filename":"Club letter.docx","outcome":"missing"}]'
          WHERE id = 'm1'`,
       );
       sql.exec(
@@ -145,7 +145,7 @@ describe("activity", () => {
       "Received Wed 8 Oct, 9am, from activity@example.com, read Wed 8 Oct, 9:01am",
     );
     expect(section).toContain(
-      '<span class="tag tag-done">Done</span> 3 items and 1 note found. Attachments: judo.docx (read), logo.png (skipped as a logo), menu.ppt (couldn&#39;t read).',
+      '<span class="tag tag-done">Done</span> 3 items and 1 note found. 3 attachments: judo.docx (read), logo.png (skipped as a logo), menu.ppt (couldn&#39;t read). Mentions Club letter.docx, but it wasn&#39;t attached.',
     );
     expect(section).toContain("Received Thu 9 Oct, 2:05pm");
     expect(section).toContain(
