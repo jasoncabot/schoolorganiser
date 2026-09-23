@@ -94,12 +94,16 @@ function cleanItem(raw: unknown, sentAt: string): ExtractedItem | null {
     school: text(r.school, 120),
     child: text(r.child, 80),
     confidence: r.confidence === "high" ? "high" : "low",
-    forChildren: Array.isArray(r.for)
-      ? r.for.flatMap((name) =>
-          typeof name === "string" && name.trim() !== "" ? [name.trim()] : [],
-        )
-      : [],
+    forChildren: names(r.for),
+    maybeChildren: names(r.maybe),
   };
+}
+
+function names(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((name) =>
+    typeof name === "string" && name.trim() !== "" ? [name.trim()] : [],
+  );
 }
 
 function integer(value: unknown): number | null {
@@ -112,4 +116,16 @@ function text(value: unknown, max: number): string | null {
   const trimmed = value.trim();
   if (trimmed === "" || /^(null|none|n\/a)$/i.test(trimmed)) return null;
   return trimmed.slice(0, max);
+}
+
+/** Year groups, key stages and whole-school wording: anything else in `child` is a class name. */
+const NOT_A_CLASS =
+  /\b(year|yr|y\s?\d|reception|nursery|eyfs|early years|ks\s?\d|key stage|whole|all|every|school|pupils|children|sixth form)\b/i;
+
+/**
+ * Whether an item's audience (the `child` field, as written in the letter) names a class, e.g.
+ * "Oak class" or "Hazel", rather than a year group, key stage or the whole school.
+ */
+export function namesAClass(audience: string | null): boolean {
+  return audience !== null && !NOT_A_CLASS.test(audience);
 }

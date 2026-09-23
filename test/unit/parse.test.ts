@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseExtraction, resolveDate } from "../../src/extract/parse";
+import { namesAClass, parseExtraction, resolveDate } from "../../src/extract/parse";
 
 describe("resolveDate", () => {
   const sent = "2026-09-23T10:00:00.000Z";
@@ -57,6 +57,7 @@ describe("parseExtraction", () => {
         child: "Year 3",
         confidence: "high",
         forChildren: [],
+        maybeChildren: [],
       },
     ]);
   });
@@ -89,5 +90,26 @@ describe("parseExtraction", () => {
       "2025-09-29T15:10:00.000Z",
     );
     expect(items?.[0]?.forChildren).toEqual(["Ada", "Ben"]);
+  });
+});
+
+describe("namesAClass", () => {
+  it("spots class names but not year groups, key stages or the whole school", () => {
+    for (const cls of ["Oak class", "Hazel", "Class 3B", "Robins"])
+      expect(namesAClass(cls)).toBe(true);
+    for (const notCls of [
+      "Year 3",
+      "Y6",
+      "Yr 1",
+      "Reception",
+      "KS2",
+      "Key Stage 1",
+      "EYFS",
+      "Whole school",
+      "All pupils",
+      null,
+    ]) {
+      expect(namesAClass(notCls)).toBe(false);
+    }
   });
 });

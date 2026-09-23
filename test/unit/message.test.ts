@@ -1,4 +1,5 @@
 import { env } from "cloudflare:workers";
+import { testDeps } from "../helpers/deps";
 import { describe, expect, it } from "vitest";
 import { MAX_PPTX_IMAGES, readMessage } from "../../src/extract/message";
 import { MAX_RENDERED_PAGES, pdfRenderer } from "../../src/extract/render";
@@ -18,7 +19,7 @@ describe("readMessage", () => {
         }),
       ),
       env.AI,
-      pdfRenderer(env),
+      pdfRenderer(env, testDeps("renderer")),
     );
     expect(message).toEqual({
       subject: "Fwd: Harvest festival",
@@ -53,7 +54,7 @@ describe("readMessage", () => {
         }),
       ),
       env.AI,
-      pdfRenderer(env),
+      pdfRenderer(env, testDeps("renderer")),
     );
     expect(message.text).toBe(
       "See attached.\n\nAttachment: Trip letter.pdf\n# Year 3 trip\nThursday 16 October\n\nAttachment: consent.docx\nReturn by Friday 10 October",
@@ -87,7 +88,7 @@ describe("readMessage", () => {
         }),
       ),
       env.AI,
-      pdfRenderer(env),
+      pdfRenderer(env, testDeps("renderer")),
     );
     expect(message.text).toBe(
       "Attachment: Fair.pptx\nSlide 1\nChristmas fair\nSaturday 6 December\n\nPoster 1\n\nPoster 2\n\nPoster 3\n\nPoster 4\n\nPoster 5",
@@ -113,7 +114,7 @@ describe("readMessage", () => {
         }),
       ),
       env.AI,
-      pdfRenderer(env),
+      pdfRenderer(env, testDeps("renderer")),
     );
     expect(message.text).toBe("Body");
     expect(message.unreadable).toEqual([
@@ -136,7 +137,7 @@ describe("readMessage", () => {
         }),
       ),
       env.AI,
-      pdfRenderer(env),
+      pdfRenderer(env, testDeps("renderer")),
     );
     expect(message.unreadable).toEqual([{ filename: "scan.pdf", reason: "conversion failed" }]);
   });
@@ -164,7 +165,7 @@ describe("readMessage", () => {
         }),
       ),
       env.AI,
-      pdfRenderer(env),
+      pdfRenderer(env, testDeps("renderer")),
     );
     expect(message.text).toBe(
       "Body\n\nAttachment: concert.ics\nBEGIN:VEVENT\nSUMMARY:Carol concert\nEND:VEVENT",
@@ -178,7 +179,7 @@ describe("readMessage", () => {
     const message = await readMessage(
       encode(mimeEmail({ from: "p@example.com", subject: "Disco", html })),
       env.AI,
-      pdfRenderer(env),
+      pdfRenderer(env, testDeps("renderer")),
     );
     expect(message.text).toBe("Disco on **Friday 17 October**");
   });
@@ -203,7 +204,7 @@ describe("readMessage", () => {
         }),
       ),
       env.AI,
-      pdfRenderer(env),
+      pdfRenderer(env, testDeps("renderer")),
     );
     expect(message.images).toEqual(["data:image/jpeg;base64,cGFnZTE="]);
     expect(message.text).toContain("Attachment: harvest.pdf\nPage 1\nHarvest festival");
@@ -222,7 +223,7 @@ describe("readMessage", () => {
         }),
       ),
       env.AI,
-      pdfRenderer(env),
+      pdfRenderer(env, testDeps("renderer")),
     );
     expect(message.images).toHaveLength(1);
     expect(message.unreadable).toEqual([]);
@@ -263,7 +264,7 @@ describe("readMessage", () => {
         }),
       ),
       env.AI,
-      pdfRenderer(env),
+      pdfRenderer(env, testDeps("renderer")),
     );
     expect(message.images).toHaveLength(MAX_RENDERED_PAGES);
     expect(message.images[8]).toBe(`data:image/jpeg;base64,${btoa("b0")}`);

@@ -34,14 +34,15 @@ We use it only to provide the service you signed up for:
 
 ## How long we keep it
 
-| Data                                                            | Kept for                                                         |
-| --------------------------------------------------------------- | ---------------------------------------------------------------- |
-| Emails forwarded before you verify                              | 7 days, then deleted                                             |
-| Original emails and attachments, and the text we read from them | 90 days after we receive them, then deleted automatically        |
-| Extracted information (dates, costs, locations)                 | 90 days after the date it relates to, then deleted automatically |
-| Children and schools you add                                    | Until you delete them or close your account                      |
-| Your email address                                              | Until you remove it or close your account                        |
-| Service logs                                                    | 7 days                                                           |
+| Data                                                                      | Kept for                                                         |
+| ------------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| Emails forwarded before you verify                                        | 7 days, then deleted                                             |
+| Original emails and attachments, and the text we read from them           | 90 days after we receive them, then deleted automatically        |
+| A temporary copy of a PDF attachment, while we turn its pages into images | Deleted as soon as that's done (at most 1 day)                   |
+| Extracted information (dates, costs, locations)                           | 90 days after the date it relates to, then deleted automatically |
+| Children and schools you add                                              | Until you delete them or close your account                      |
+| Your email address                                                        | Until you remove it or close your account                        |
+| Service logs                                                              | 7 days                                                           |
 
 Pausing the digest does not delete anything. To delete everything, use **Delete my data** on the web page. It takes effect straight away.
 

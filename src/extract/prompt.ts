@@ -12,9 +12,9 @@ export const EXTRACTION_MODEL = "@cf/mistralai/mistral-small-3.1-24b-instruct";
  * Bump when reading or extraction changes in a way worth re-running on stored mail (prompt,
  * model, PDF layout). Messages processed by an older version are re-read the next time the
  * household processes mail. History: 1 first release; 2 unpdf column layout, code-resolved
- * years, larger answers; 3 PDF page images, which children each item is for.
+ * years, larger answers; 3 PDF page images, which children each item is for; 4 Quick Action rendering, "maybe" for unmatched class names.
  */
-export const EXTRACTION_VERSION = 3;
+export const EXTRACTION_VERSION = 4;
 
 export const ITEM_KINDS = [
   "event",
@@ -44,6 +44,11 @@ export interface ExtractedItem {
    * the household had no children set up (then everything counts as relevant).
    */
   forChildren: string[] | null;
+  /**
+   * Children it may apply to but the model couldn't tell, e.g. an item for "Oak class" when a
+   * child at that school has no class set.
+   */
+  maybeChildren: string[];
 }
 
 /** Longest email text (subject, body and attachments together) we send to the model. */
@@ -75,6 +80,11 @@ export const EXTRACTION_SCHEMA = {
             items: { type: "string" },
             description: "Names of the household's children this applies to",
           },
+          maybe: {
+            type: "array",
+            items: { type: "string" },
+            description: "Names of children it might apply to, when you can't tell",
+          },
         },
         required: [
           "day",
@@ -89,6 +99,7 @@ export const EXTRACTION_SCHEMA = {
           "child",
           "confidence",
           "for",
+          "maybe",
         ],
       },
     },
@@ -145,7 +156,7 @@ export interface ExtractionInput {
 
 function householdSection(children: PromptChild[]): string {
   if (children.length === 0) {
-    return `\n\nThis household hasn't told us about its children yet, so give "for" as [] for every item.`;
+    return `\n\nThis household hasn't told us about its children yet, so give "for" and "maybe" as [] for every item.`;
   }
   const lines = children.map(
     (c) =>
@@ -157,6 +168,7 @@ function householdSection(children: PromptChild[]): string {
 - A letter only ever applies to children at the school that sent it. Work out the school from the letter (its name, letterhead or sender). If none of these children go to that school, "for" is [] for every item.
 - Whole-school items (INSET days, closures, term dates, events for all pupils) apply to every child above at that school.
 - Items for particular year groups, key stages or classes apply only to the children above in them. Nursery and Reception are the early years ("EYFS"); Years 1 and 2 are key stage 1 ("KS1"); Years 3 to 6 are key stage 2 ("KS2"); Years 7 to 9 are key stage 3 ("KS3"); Years 10 and 11 are key stage 4 ("KS4"); "Y3" means Year 3.
+- If an item is for a class by name (e.g. "Oak class") and a child above at that school has no class listed, you can't tell whether it's their class: put that child in "maybe", not "for", unless the item's year group rules them out. For example, if Ada has no class listed, an item for "Oak class" at her school has "for": [] and "maybe": ["Ada"]. Otherwise "maybe" is [].
 - Use the names exactly as written above.`;
 }
 

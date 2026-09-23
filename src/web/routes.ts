@@ -1,5 +1,6 @@
 import type { Deps } from "../deps";
 import { confirmVerification, readVerificationToken } from "../verification";
+import { renderSource } from "../extract/render";
 import { householdRoutes } from "./household";
 import { join } from "./join";
 import { html, page } from "./html";
@@ -17,6 +18,7 @@ export async function handleRequest(request: Request, env: Env, deps: Deps): Pro
     return householdRoutes(request, env, deps);
   }
   if (url.pathname === "/join") return join(request, env, deps);
+  if (url.pathname === "/render-source") return renderSource(request, env, deps);
   if (url.pathname === "/__test/outbox") return testOutbox(url, env);
   return env.ASSETS.fetch(request);
 }

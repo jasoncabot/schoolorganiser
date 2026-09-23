@@ -68,7 +68,7 @@ async function received(
   const message = await readMessage(
     new TextEncoder().encode(raw).buffer as ArrayBuffer,
     env.AI,
-    pdfRenderer(env),
+    pdfRenderer(env, testDeps("renderer")),
   );
   await registerAiRun(
     EXTRACTION_MODEL,
@@ -110,6 +110,7 @@ describe("processing", () => {
         ...without(TRIP_ITEMS[1]),
         expiresAt: "2026-01-08T00:00:00.000Z",
         childIds: null,
+        maybeChildIds: [],
       },
       {
         id: "m1-0",
@@ -118,6 +119,7 @@ describe("processing", () => {
         ...without(TRIP_ITEMS[0]),
         expiresAt: "2026-01-14T00:00:00.000Z",
         childIds: null,
+        maybeChildIds: [],
       },
     ]);
     expect(await household.unreadable()).toEqual([
@@ -289,7 +291,7 @@ describe("which children each item is for", () => {
     const message = await readMessage(
       new TextEncoder().encode(raw).buffer as ArrayBuffer,
       env.AI,
-      pdfRenderer(env),
+      pdfRenderer(env, testDeps("renderer")),
     );
     await registerAiRun(
       EXTRACTION_MODEL,
@@ -336,6 +338,63 @@ describe("which children each item is for", () => {
       ["Pay for Chester Zoo trip", []],
       ["Year 3 trip to Chester Zoo", ["child-ada"]],
       ["Harvest festival", ["child-ada", "child-sam"]],
+    ]);
+  });
+
+  it("keeps children an item may apply to, e.g. for a class name we don't know", async () => {
+    const householdId = "household-relevance-maybe";
+    const household = await withChildren(householdId);
+    const raw = trip(householdId);
+    await register(raw, promptChildren, {
+      response: {
+        items: [
+          { ...TRIP_ITEMS[0], title: "Oak class assembly", for: [], maybe: ["Ada", "Nobody"] },
+        ],
+      },
+    });
+    const key = `mail/${householdId}/m1.eml`;
+    await env.MAIL.put(key, raw);
+    await household.receive({
+      id: "m1",
+      key,
+      receivedAt: "2025-09-29T15:11:00.000Z",
+      expiresAt: "2025-12-28T15:11:00.000Z",
+    });
+    await process(household, "relevance maybe");
+    expect((await household.items()).map((i) => [i.childIds, i.maybeChildIds])).toEqual([
+      [[], ["child-ada"]],
+    ]);
+  });
+
+  it("treats a class-named item as only a maybe for a child whose class we don't know", async () => {
+    const householdId = "household-relevance-class";
+    const household = await withChildren(householdId);
+    const raw = trip(householdId);
+    // The model wrongly put Sam (no class set) in "for"; Ada is in Oak class, so she's certain.
+    await register(raw, promptChildren, {
+      response: {
+        items: [
+          {
+            ...TRIP_ITEMS[0],
+            title: "Class assembly",
+            child: "Oak class",
+            for: ["Ada", "Sam"],
+            maybe: [],
+          },
+        ],
+      },
+    });
+    const key = `mail/${householdId}/m1.eml`;
+    await env.MAIL.put(key, raw);
+    await household.receive({
+      id: "m1",
+      key,
+      receivedAt: "2025-09-29T15:11:00.000Z",
+      expiresAt: "2025-12-28T15:11:00.000Z",
+    });
+    await process(household, "relevance class");
+    expect((await household.items()).map((i) => [i.childIds, i.maybeChildIds])).toEqual([
+      [["child-ada"], ["child-sam"]],
     ]);
   });
 

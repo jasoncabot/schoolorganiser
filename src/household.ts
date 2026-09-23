@@ -3,7 +3,7 @@ import { currentYearGroup, yearGroupLabel, type Child, type ChildInput } from ".
 import { systemDeps, type Deps } from "./deps";
 import { runModel } from "./extract/ai";
 import { readMessage, type Unreadable } from "./extract/message";
-import { parseExtraction } from "./extract/parse";
+import { namesAClass, parseExtraction } from "./extract/parse";
 import { pdfRenderer } from "./extract/render";
 import {
   EXTRACTION_MODEL,
@@ -22,7 +22,7 @@ export interface ReceivedMail {
 
 export type MessageStatus = "new" | "done" | "failed";
 
-export interface StoredItem extends Omit<ExtractedItem, "forChildren"> {
+export interface StoredItem extends Omit<ExtractedItem, "forChildren" | "maybeChildren"> {
   id: string;
   messageId: string;
   expiresAt: string;
@@ -31,6 +31,8 @@ export interface StoredItem extends Omit<ExtractedItem, "forChildren"> {
    * set up when it was read, in which case it counts as relevant to everyone.
    */
   childIds: string[] | null;
+  /** Children it may apply to (e.g. an unknown class name at their school). */
+  maybeChildIds: string[];
 }
 
 /** Attempts at processing one message before it's marked failed. */
@@ -127,12 +129,13 @@ export class Household extends Agent<Env> {
     const message = await readMessage(
       await object.arrayBuffer(),
       this.env.AI,
-      pdfRenderer(this.env),
+      pdfRenderer(this.env, deps),
     );
     const sentAt = message.sentAt ?? receivedAt;
-    const children = this.children();
     const childrenVersion = this.childrenVersion();
     const now = deps.clock.now();
+    // Children who've left school can't be the subject of a school letter.
+    const children = this.children().filter((c) => currentYearGroup(c, now) !== null);
     let items: ExtractedItem[] = [];
     if (message.text.trim() !== "" || message.images.length > 0) {
       const result = await runModel(
@@ -186,20 +189,32 @@ export class Household extends Agent<Env> {
     deps: Deps,
   ): void {
     // The model names children; store their ids. With no children set up, everything is relevant.
-    const childIds = (names: string[]): string | null => {
-      if (children.length === 0) return null;
+    const matching = (names: string[]): string[] => {
       const wanted = new Set(names.map((n) => n.toLowerCase()));
-      return JSON.stringify(
-        children.filter((c) => wanted.has(c.name.toLowerCase())).map((c) => c.id),
-      );
+      return children.filter((c) => wanted.has(c.name.toLowerCase())).map((c) => c.id);
+    };
+    // Returns [child_ids, maybe_child_ids] as stored JSON. If the letter names a class and the
+    // model matched a child whose class we don't know, it can only be a "maybe" for them, whatever
+    // the model said.
+    const relevance = (item: ExtractedItem): [string | null, string] => {
+      if (children.length === 0) return [null, "[]"];
+      let sure = matching(item.forChildren ?? []);
+      let maybe = matching(item.maybeChildren);
+      if (namesAClass(item.child)) {
+        const unknownClass = new Set(children.filter((c) => c.className === null).map((c) => c.id));
+        maybe = [...maybe, ...sure.filter((id) => unknownClass.has(id))];
+        sure = sure.filter((id) => !unknownClass.has(id));
+      }
+      maybe = [...new Set(maybe)].filter((id) => !sure.includes(id));
+      return [JSON.stringify(sure), JSON.stringify(maybe)];
     };
     this.ctx.storage.transactionSync(() => {
       this.db.exec("DELETE FROM items WHERE message_id = ?", id);
       this.db.exec("DELETE FROM unreadable WHERE message_id = ?", id);
       items.forEach((item, index) => {
         this.db.exec(
-          `INSERT INTO items (id, message_id, date, time, kind, title, cost, location, school, child, confidence, expires_at, child_ids)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          `INSERT INTO items (id, message_id, date, time, kind, title, cost, location, school, child, confidence, expires_at, child_ids, maybe_child_ids)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           `${id}-${String(index)}`,
           id,
           item.date,
@@ -212,7 +227,7 @@ export class Household extends Agent<Env> {
           item.child,
           item.confidence,
           addDays(new Date(`${item.date}T00:00:00.000Z`), MAIL_DAYS).toISOString(),
-          childIds(item.forChildren ?? []),
+          ...relevance(item),
         );
       });
       for (const file of unreadable) {
@@ -385,6 +400,7 @@ export class Household extends Agent<Env> {
         confidence: StoredItem["confidence"];
         expires_at: string;
         child_ids: string | null;
+        maybe_child_ids: string | null;
       }>("SELECT * FROM items ORDER BY date, time, id")
       .toArray()
       .map((i) => ({
@@ -401,6 +417,8 @@ export class Household extends Agent<Env> {
         confidence: i.confidence,
         expiresAt: i.expires_at,
         childIds: i.child_ids === null ? null : (JSON.parse(i.child_ids) as string[]),
+        maybeChildIds:
+          i.maybe_child_ids === null ? [] : (JSON.parse(i.maybe_child_ids) as string[]),
       }));
   }
 
@@ -490,6 +508,8 @@ export function migrate(sql: SqlStorage): void {
       .map((c) => c.name),
   );
   if (!itemColumns.has("child_ids")) sql.exec("ALTER TABLE items ADD COLUMN child_ids TEXT");
+  if (!itemColumns.has("maybe_child_ids"))
+    sql.exec("ALTER TABLE items ADD COLUMN maybe_child_ids TEXT");
 }
 
 function errorName(error: unknown): string {

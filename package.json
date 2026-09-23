@@ -25,7 +25,6 @@
     "eval:extraction": "esbuild scripts/eval-extraction.ts --bundle --platform=node --format=esm --outfile=.wrangler/eval-extraction.mjs --log-level=warning && node .wrangler/eval-extraction.mjs"
   },
   "dependencies": {
-    "@cloudflare/puppeteer": "^1.4.0",
     "agents": "^0.24.0",
     "fflate": "^0.8.3",
     "postal-mime": "^3.0.0",

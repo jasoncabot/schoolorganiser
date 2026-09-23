@@ -113,6 +113,7 @@ async function overview(env: Env, deps: Deps, session: Session, notice?: Html): 
         <dt>${c.name}</dt>
         <dd>
           ${c.school}<br />${yearGroupLabel(currentYearGroup(c, now))}${c.className === null ? "" : `, ${c.className}`}
+          ${c.className === null ? html`<br /><span class="hint">Add a class if letters use class names</span>` : html``}
         </dd>
         <dd class="summary-actions">
           <a href="/household/children/${c.id}">Change<span class="sr-only"> ${c.name}</span></a>
