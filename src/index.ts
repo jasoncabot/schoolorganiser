@@ -1,3 +1,5 @@
+import { handleInbound } from "./email/inbound";
+
 export { Address } from "./address";
 export { Household } from "./household";
 
@@ -7,8 +9,7 @@ export default {
     return env.ASSETS.fetch(request);
   },
 
-  email(message): void {
-    // Inbound mail is handled in plan step 3. Until then nothing is stored or replied to.
-    console.log("email received", { size: message.rawSize });
+  async email(message, env): Promise<void> {
+    await handleInbound(message, env);
   },
 } satisfies ExportedHandler<Env>;

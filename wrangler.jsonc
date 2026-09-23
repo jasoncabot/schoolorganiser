@@ -9,8 +9,8 @@
   "build": { "command": "npm run build" },
   "assets": { "directory": "public", "binding": "ASSETS" },
   "observability": { "enabled": true },
-  // workers.dev stays on until the school.jasoncabot.com custom domain is live (docs/runbook.md).
-  "workers_dev": true,
+  "routes": [{ "pattern": "school.jasoncabot.com", "custom_domain": true }],
+  "workers_dev": false,
   "preview_urls": false,
   "vars": { "APP_ORIGIN": "https://school.jasoncabot.com" },
   "secrets": { "required": ["SIGNING_KEY", "PRIVACY_FORWARD_TO"] },
