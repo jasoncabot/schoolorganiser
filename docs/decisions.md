@@ -29,3 +29,4 @@ Settled with the owner. Add new ones at the bottom with a date.
 | 2026-09-23 | Privacy contact is `privacy@school.jasoncabot.com`. The Worker applies the SPF/DKIM/DMARC gate and forwards to the owner's address, which is held in the `PRIVACY_FORWARD_TO` Workers Secret and never committed. |
 | 2026-09-23 | Retention: raw mail, attachments and their extracted text are deleted 90 days after receipt. Extracted items are deleted 90 days after the date they relate to. Children, schools and member addresses are kept until the parent deletes them. |
 | 2026-09-23 | Service logs: Workers Logs, 7 days (the fixed retention on the Paid plan). No Logpush or other long-term log storage. |
+| 2026-09-23 | Retention is enforced by per-household Durable Object alarms set to the next `expires_at` (rounded up to the day, re-armed after each purge). No daily clean-up job, which keeps the cost down for low-volume households. |
