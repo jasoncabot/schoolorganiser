@@ -20,7 +20,7 @@ Settled with the owner. Add new ones at the bottom with a date.
 | 2026-09-23 | v1 supports manual forwards only. Design the sender lookup so automatic forwarding (Gmail/Outlook filters, including relaying their confirmation email) can be added straight after. |
 | 2026-09-23 | Email → household lookup is a small Durable Object per normalised address (household ID + verification state). |
 | 2026-09-23 | Stopping digests: a one-click stop link in every digest (with `List-Unsubscribe` and `List-Unsubscribe-Post` headers) plus a web page setting. Stopping pauses the digest and keeps the data. Deleting data is a separate action. |
-| 2026-09-23 | The owner writes the privacy notice. Agents provide a placeholder page and a checklist only. It must be in place before any other parent uses the service. |
+| 2026-09-23 | Privacy notice is `docs/privacy.md`, served on the web page. Lawful basis is consent (forward + verify). Data is used only to provide the service: never sold, never used for marketing. It must be live before any other parent uses the service. |
 | 2026-09-23 | Digest is readable in about 30 seconds: grouped by day, the child's name on each line, at most ~15 lines, with a "plus N more" link to the web page. |
 | 2026-09-23 | Digest includes a short "Coming up" section for deadlines and payments due within ~3 weeks. |
 | 2026-09-23 | A quiet week still sends one line: "Nothing on this week." |

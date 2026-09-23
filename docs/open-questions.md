@@ -2,15 +2,6 @@
 
 Put these to the owner before building the parts they affect. Move each one to `decisions.md` once it's answered.
 
-None at present.
-
-## Privacy notice checklist (owner to write)
-
-The notice needs to cover:
-
-- who runs the service and how to contact them
-- what's stored: forwarded mail, attachments, extracted items, children's names and schools, member email addresses
-- why it's stored (lawful basis) and that nothing is used for any other purpose
-- retention: raw mail 90 days, unverified mail 7 days, extracted items until deleted
-- processors: Cloudflare (Workers, Durable Objects, R2, Workers AI, Email Service)
-- rights: access, deletion (on the web page), how to complain (ICO)
+1. **Privacy contact address:** `docs/privacy.md` needs a contact route for rights requests. It shouldn't be a personal address, because this repo is public.
+2. **Retention of extracted information:** the privacy notice keeps extracted items until the parent deletes them. Should past items be deleted automatically instead (e.g. at the end of the school year)?
+3. **Service log retention:** the privacy notice says logs are kept for up to 7 days. Configure Workers Logs to match, or change the notice.
