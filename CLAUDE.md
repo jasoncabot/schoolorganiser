@@ -14,6 +14,7 @@ School Organiser: parents forward school emails to one address. Each week they g
 - `docs/open-questions.md`: things still to decide with the owner
 - `docs/testing.md`: how we test. Determinism comes first.
 - `docs/design.md`: web UI style
+- `docs/runbook.md`: production resources and how they were set up
 - `docs/privacy.md`: the privacy notice. Any change to what we store or how long we keep it must update this too.
 
 ## Rules
