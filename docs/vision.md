@@ -16,7 +16,7 @@ The owner first (two children at two schools), then other UK school parents.
    - a single note for any attachment we couldn't read (e.g. an old `.ppt`), so nothing is missed without you knowing
    - a one-click stop link
 5. A **minimal web page** (magic-link sign-in) lets a parent:
-   - add their children and which school each attends
+   - add their children: display name, school, year group and (optionally) class, so the AI can tell which items apply to which child
    - add another parent's email to the household
    - see upcoming items
    - pause or restart the digest
@@ -27,6 +27,14 @@ We send from a no-reply address, and replies are ignored.
 ## Households
 
 A household can have several verified email addresses. Mail forwarded by any member feeds one shared digest, and the digest goes to every member.
+
+## Relevance
+
+Letters often cover every year group. For each item, the AI decides which of the household's children it applies to, or whether it's for the whole school. The digest shows only items for the household's children and whole-school items.
+
+## After v1
+
+1. **Ask a question** on the web page, e.g. "what extracurricular activities are on this week?", answered from the household's stored letters and items.
 
 ## Not in v1
 
